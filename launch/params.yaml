@@ -1,0 +1,64 @@
+# Initial STD of Error-State values (filter)
+dp0_std: [0.0, 0.0, 0.05]
+dv0_std: [0.0, 0.0, 0.0]
+dtheta0_std: [0.05, 0.05, 0.0]
+dab0_std: [0.0196, 0.0196, 0.0196]
+dwb0_std: [0.0037, 0.0040, 0.0]
+dg0_std: [0.0, 0.0, 0.0]
+dpo0_std: [0.0, 0.0, 0.0]
+dthetao0_std: [0.0, 0.0, 0.0]
+dpr0_std: [0.0, 0.0, 0.0]
+dthetar0_std: [0.0, 0.0, 0.0]
+frame: global # Frame r.t. orientation derivation is computed (global or local)
+
+#IMU STD values
+imu_a_std: [0.2,0.2,0.2]
+imu_w_std: [0.005,0.005,0.005]
+imu_ab_std: [0.0,0.0,0.0]
+imu_wb_std: [0.0,0.0,0.0]
+imu_method: discrete #Sets the data time nature (continous: simulated IMU or discrete: IMU sensor).
+
+# Position STD values
+position_std_outsidebounds: [10.0,10.0,10.0]
+position_std_insidebounds: [0.01,0.01,0.01]
+
+# Orientation STD values
+orientation_std_outsidebounds: [10.0,10.0,10.0]
+orientation_std_insidebounds: [0.01,0.01,0.01]
+
+# Linear velocity STD values
+linvel_std_outsidebounds: [10.0,10.0,10.0]
+linvel_std_insidebounds: [0.01,0.01,0.01]
+
+# Pose STD velaues (Pose field of Odometry msg)
+pose_std_outsidebounds: [10.0,10.0,10.0,10.0,10.0,10.0]
+pose_std_insidebounds: [0.01,0.01,0.01,0.01,0.01,0.01]
+
+# Pose 2 STD velaues (Pose field of Odometry 2 msg)
+pose2_std_outsidebounds: [10.0,10.0,10.0,10.0,10.0,10.0]
+pose2_std_insidebounds: [0.01,0.01,0.01,0.01,0.01,0.01]
+
+# Range STD values
+range_std_outsidebounds: 10.0
+range_std_insidebounds: 0.01
+range_min: 0.31
+range_max: 4.0
+using_laser_range: true
+
+# PX4 STD values
+px4_std_outsidebounds: [10.0,10.0,10.0]
+px4_std_insidebounds: [0.01,0.15,0.15]
+using_laser_px4: true
+px4_use_vxy: true
+
+# Flow2d STD values
+flow2d_std_outsidebounds: [10.0,10.0]
+flow2d_std_insidebounds: [0.15,0.15]
+# focal_length in pixels
+flow2d_focal_length: 73
+
+# Initial Nominal-State vector (p,v,q,ab,wb,g)
+xstate0: [0.0,0.0,0.15,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-9.803057,0.0,0.0,-0.1,0.0,0.0,0.0,1.0,0.0,0.0,-0.1,1.0,0.0,0.0,0.0]
+
+# Initial Error-State vector (dp,dv,dtheta,dab,dwb,dg)
+dxstate0: [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
