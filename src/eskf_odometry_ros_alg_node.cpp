@@ -8,6 +8,10 @@
 // TF stuff
 #include <tf/transform_broadcaster.h>
 
+#include <eskf_odometry_ros/dxstate.h>
+#include <eskf_odometry_ros/vP.h>
+#include <eskf_odometry_ros/xstate.h>
+
 EskfOdomAlgNode::EskfOdomAlgNode(void) :
 algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm>()
 {
@@ -35,6 +39,8 @@ algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm>()
 
     // [init publishers]
     this->odom_publisher_ = this->public_node_handle_.advertise<nav_msgs::Odometry>("odom_out", 1);
+    this->state_publisher_ = this->public_node_handle_.advertise<eskf_odometry_ros::xstate>("xstate_out", 1);
+    this->cov_publisher_ = this->public_node_handle_.advertise<eskf_odometry_ros::vP>("cov_out", 1);
 
     // [init subscribers]
     this->position_in_subscriber_ = this->public_node_handle_.subscribe("position_in", 1, &EskfOdomAlgNode::position_in_callback, this);
@@ -273,6 +279,7 @@ void EskfOdomAlgNode::mainNodeThread(void)
 
 void EskfOdomAlgNode::ThreadFunc(void)
 {
+    ros::Rate rate(20);
     while(RunThread_)
     {
         // // DEBUG: Frequency check
@@ -288,44 +295,99 @@ void EskfOdomAlgNode::ThreadFunc(void)
         this->flying_mutex_exit();
 
         Eigen::VectorXf state(33,1);
+        Eigen::VectorXf vcovP(19,1);  
+        eskf_odometry_ros::vP ros_vcovP;
+        eskf_odometry_ros::vP ros_state;
+
         Eigen::Vector3f ang_vel;
         bool step_done = false;
 
         this->alg_.lock();
         // step_done = this->alg_.update(state,ang_vel,is_flying,this->range_dist_(0));
+        this->alg_.update(state, vcovP);
+        ros_state.p.x = state(0);
+        ros_state.p.y = state(1);
+        ros_state.p.z = state(2);
+        ros_state.v.x = state(3);
+        ros_state.v.y = state(4);
+        ros_state.v.z = state(5);
+        ros_state.q.w = state(6);
+        ros_state.q.x = state(7);
+        ros_state.q.y = state(8);
+        ros_state.q.z = state(9);
+        ros_state.ab.x = state(10);
+        ros_state.ab.y = state(11);
+        ros_state.ab.z = state(12);
+        ros_state.wb.x = state(13);
+        ros_state.wb.y = state(14);
+        ros_state.wb.z = state(15);
+        ros_state.g.x = state(16);
+        ros_state.g.y = state(17);
+        ros_state.g.z = state(18);
+
+        ros_vcovP.p.x = vcovP(0);
+        ros_vcovP.p.y = vcovP(1);
+        ros_vcovP.p.z = vcovP(2);
+        ros_vcovP.v.x = vcovP(3);
+        ros_vcovP.v.y = vcovP(4);
+        ros_vcovP.v.z = vcovP(5);
+        ros_vcovP.q.w = vcovP(6);
+        ros_vcovP.q.x = vcovP(7);
+        ros_vcovP.q.y = vcovP(8);
+        ros_vcovP.q.z = vcovP(9);
+        ros_vcovP.ab.x = vcovP(10);
+        ros_vcovP.ab.y = vcovP(11);
+        ros_vcovP.ab.z = vcovP(12);
+        ros_vcovP.wb.x = vcovP(13);
+        ros_vcovP.wb.y = vcovP(14);
+        ros_vcovP.wb.z = vcovP(15);
+        ros_vcovP.g.x = vcovP(16);
+        ros_vcovP.g.y = vcovP(17);
+        ros_vcovP.g.z = vcovP(18);
+        
+
         this->alg_.unlock();
+        ros::spinOnce();
+        rate.sleep();
 
-        if (step_done)
-        {
-            // Broadcast state with TF
-            static tf::TransformBroadcaster br;
-            tf::Transform transform;
-            transform.setOrigin(tf::Vector3(state(0), state(1), state(2)));
-            tf::Quaternion q(state(7), state(8), state(9), state(6)); //TF:[qx,qy,qz,qw] Filter:[qw,qx,qy,qz]
-            transform.setRotation(q);
-            br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), this->odom_out_frame_id_, this->robot_frame_id_));
+        this->state_publisher_.publish(ros_state);
+        this->cov_publisher_.publish(ros_vcovP);
 
-            // Publish Odometry
-            this->odom_msg_.header.seq = this->seq_;
-            this->odom_msg_.header.stamp = ros::Time::now();
-            this->odom_msg_.header.frame_id = this->odom_out_frame_id_;
-            this->odom_msg_.child_frame_id = this->robot_frame_id_;
-            this->odom_msg_.pose.pose.position.x = state(0);
-            this->odom_msg_.pose.pose.position.y = state(1);
-            this->odom_msg_.pose.pose.position.z = state(2);
-            this->odom_msg_.pose.pose.orientation.w = state(6);
-            this->odom_msg_.pose.pose.orientation.x = state(7);
-            this->odom_msg_.pose.pose.orientation.y = state(8);
-            this->odom_msg_.pose.pose.orientation.z = state(9);
-            this->odom_msg_.twist.twist.linear.x = state(3);
-            this->odom_msg_.twist.twist.linear.y = state(4);
-            this->odom_msg_.twist.twist.linear.z = state(5);
-            this->odom_msg_.twist.twist.angular.x = ang_vel(0);
-            this->odom_msg_.twist.twist.angular.y = ang_vel(1);
-            this->odom_msg_.twist.twist.angular.z = ang_vel(2);
-            this->odom_publisher_.publish(this->odom_msg_);
-            ++this->seq_;
-        }
+
+
+        // std::cout << "RunThread_ "  << std::endl;
+
+        // if (step_done)
+        // {
+        //     // Broadcast state with TF
+        //     static tf::TransformBroadcaster br;
+        //     tf::Transform transform;
+        //     transform.setOrigin(tf::Vector3(state(0), state(1), state(2)));
+        //     tf::Quaternion q(state(7), state(8), state(9), state(6)); //TF:[qx,qy,qz,qw] Filter:[qw,qx,qy,qz]
+        //     transform.setRotation(q);
+        //     br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), this->odom_out_frame_id_, this->robot_frame_id_));
+
+        //     // Publish Odometry
+        //     this->odom_msg_.header.seq = this->seq_;
+        //     this->odom_msg_.header.stamp = ros::Time::now();
+        //     this->odom_msg_.header.frame_id = this->odom_out_frame_id_;
+        //     this->odom_msg_.child_frame_id = this->robot_frame_id_;
+        //     this->odom_msg_.pose.pose.position.x = state(0);
+        //     this->odom_msg_.pose.pose.position.y = state(1);
+        //     this->odom_msg_.pose.pose.position.z = state(2);
+        //     this->odom_msg_.pose.pose.orientation.w = state(6);
+        //     this->odom_msg_.pose.pose.orientation.x = state(7);
+        //     this->odom_msg_.pose.pose.orientation.y = state(8);
+        //     this->odom_msg_.pose.pose.orientation.z = state(9);
+        //     this->odom_msg_.twist.twist.linear.x = state(3);
+        //     this->odom_msg_.twist.twist.linear.y = state(4);
+        //     this->odom_msg_.twist.twist.linear.z = state(5);
+        //     this->odom_msg_.twist.twist.angular.x = ang_vel(0);
+        //     this->odom_msg_.twist.twist.angular.y = ang_vel(1);
+        //     this->odom_msg_.twist.twist.angular.z = ang_vel(2);
+        //     this->odom_publisher_.publish(this->odom_msg_);
+        //     ++this->seq_;
+        // }
     }
 }
 

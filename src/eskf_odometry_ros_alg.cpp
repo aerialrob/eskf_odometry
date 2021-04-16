@@ -223,3 +223,7 @@ bool EskfOdomAlgorithm::update(Eigen::VectorXf& state, Eigen::Vector3f& ang_vel,
 {
     // return this->filter_.update(state,ang_vel, flying, gnd_dist);
 }
+void EskfOdomAlgorithm::update(Eigen::VectorXf& state, Eigen::VectorXf& covPtrue)
+{
+    this->filter_.update(state, covPtrue);
+}

@@ -112,6 +112,8 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
 
         // [publisher attributes]
         ros::Publisher odom_publisher_;
+        ros::Publisher state_publisher_;
+        ros::Publisher cov_publisher_;
         nav_msgs::Odometry odom_msg_;
 
         // [subscriber attributes]

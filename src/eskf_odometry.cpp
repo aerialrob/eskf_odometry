@@ -7,27 +7,36 @@
 
 #include <math.h>      
 
-// Matrix from q
-Eigen::Matrix3f q2R(const Eigen::Quaternionf& q)
+/**
+    * \brief Quaternion to rotation matrix
+    *
+    *  Returns the rotation matrix from a quaternion 
+    * Input:
+    *   q:    Quaternion with convenion: q = [qw qx qy qz] with qw th scalar element.
+    * Output:
+    *   R:    Rotation matrix.
+    */
+void q2R(const Eigen::Quaternionf& q,  Eigen::Matrix3f& R)
 {
-    // std::cout << "R=" << std::endl << q.toRotationMatrix() << std::endl;
-    return q.toRotationMatrix();
+    R = q.matrix();
 }
 // Rotation vector to quaternion conversion.
 Eigen::Quaternionf vec2q (const Eigen::Vector3f& w)
 {    
     // Get angle and axis 
     float angle = sqrt(w.dot(w));
-    Eigen::Vector3f axis;    
-    if (angle == 0){
+    Eigen::Vector3f axis;
+    float EPS_ = std::nextafterf(0.0, 1);
+
+    if (angle < EPS_){
+        angle = 0.0;
         std::cout << "Angle too small " << angle << std::endl;  
         axis << 1,0,0;
     }
     else
         axis =  w/angle;
     // Create q from angle and axis        
-    Eigen::Quaternionf q_eigen = Eigen::Quaternionf{Eigen::AngleAxisf{angle, axis}};
-    // q2R (q_eigen);
+    Eigen::Quaternionf q_eigen = Eigen::Quaternionf{Eigen::AngleAxisf{angle, axis}};    
     return q_eigen;
 }
 // Quaternion multiplication
@@ -65,7 +74,18 @@ void eskf_odometry::set_init_params(const params& f_params, const Eigen::VectorX
     // Ptrue ;
     // TO DO fill the initial covariance matrice with std values
     // Eigen::MatrixXf Ptrue = Eigen::MatrixXf::Zero(18,18);
-    // Eigen::MatrixXf Qi = Eigen::MatrixXf::Identity(12,12);
+ 
+    Eigen::VectorXf std_est_imu_cont(12);
+    std_est_imu_cont = imu_.std * imu_.std;
+    Qi = std_est_imu_cont.asDiagonal();      
+    std::cout << Qi << std::endl;
+
+    Fi << Eigen::MatrixXf::Zero(3,12), Eigen::MatrixXf::Identity(12,12), Eigen::MatrixXf::Zero(3,12);
+    std::cout << Fi << std::endl;
+    
+    FiQi = Fi*Qi*Fi.adjoint();
+    std::cout << FiQi << std::endl;
+    // [a_est_std_cont;w_est_std_cont;ab_est_std;wb_est_std]; %a,w,ab,wb
     // Eigen::MatrixXf Fi = Eigen::MatrixXf::Zero(18,12);
     // Fi(4:15,:)=eye(12);
 
@@ -90,65 +110,51 @@ Eigen::Matrix3f vec2skew(const Eigen::Vector3f& vec)
 }
 
 Eigen::MatrixXf imu_trans_mat(const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt)
-{
-    
+{    
     // Derivative r.t. Error-State _____________________________________________
     Eigen::VectorXf q_ = xstate.segment(6,4);
     Eigen::VectorXf ab = xstate.segment(10,3);
     Eigen::VectorXf wb = xstate.segment(13,3);
     Eigen::Quaternionf q{q_(0), q_(1), q_(2), q_(3)};
-    Eigen::Matrix3f R = q2R(q);
-    
-    Eigen::Matrix3f Pv,Vg;
-    Pv.setIdentity(3,3);
-    Vg.setIdentity(3,3);
-    Eigen::Matrix3f Va = -R;    
+    Eigen::Matrix3f R;
+    q2R(q, R);         
 
     // Product on the left hand side of the nominal quaternion
     // Global Error (GE)
-    Eigen::Matrix3f sk_Ra = vec2skew(R*(a_s-ab)); //3x3 * 1x3
-    Eigen::Matrix3f Vtheta = -sk_Ra;
-    Eigen::Matrix3f Thetaomega = -R;
-
+    Eigen::Matrix3f V = -vec2skew(R*(a_s-ab)); //3x3 * 1x3    
     Eigen::MatrixXf F_dxstate(18,18);
 
     Eigen::MatrixXf M0 = Eigen::MatrixXf::Zero(3,3);
     Eigen::MatrixXf MIdent = Eigen::MatrixXf::Identity(3,3);
+    float t1 = dt;
+    float t2 = 0.5*(dt*dt);
+    float t3 = (dt*dt*dt)/6;
 
-    F_dxstate << MIdent,    Pv*dt,     M0,     0.5*Pv*Va*(dt*dt),  M0,     0.5*Pv*Vg*(dt*dt),
-                 M0,        MIdent,    M0,     Va*dt,              M0,     Vg*dt,
-                 M0,        M0,        MIdent, M0,                 M0,     M0,
-                 M0,        M0,        M0,     MIdent,             M0,     M0,
-                 M0,        M0,        M0,     M0,                 MIdent, M0,
-                 M0,        M0,        M0,     M0,                 M0,     MIdent;      
-    
-    // std::cout << F_dxstate << std::endl;
-
-    // F_dxstate = [eye(3)    Pv*dt       Pv*Vtheta*Trunc_sigma2      0.5*Pv*Va*dt^2      Pv*Vtheta*Trunc_sigma3*Thetaomega   0.5*Pv*Vg*dt^2;
-    //              zeros(3)  eye(3)      Vtheta*Trunc_sigma1         Va*dt               Vtheta*Trunc_sigma2*Thetaomega      Vg*dt;
-    //              zeros(3)  zeros(3)    Trunc_sigma0                zeros(3)            Trunc_sigma1*Thetaomega             zeros(3);
-    //              zeros(3)  zeros(3)    zeros(3)                    eye(3)              zeros(3)                            zeros(3);
-    //              zeros(3)  zeros(3)    zeros(3)                    zeros(3)            eye(3)                              zeros(3);
-    //              zeros(3)  zeros(3)    zeros(3)                    zeros(3)            zeros(3)                            eye(3)];   
+    F_dxstate << MIdent,    MIdent*t1, V*t2,   -R*t2,     -V*R*t3,  MIdent*t2,
+                 M0,        MIdent,    V*t1,   -R*t1,     -V*R*t2,  MIdent*t1,
+                 M0,        M0,        MIdent, M0,        -R*t1,    M0,
+                 M0,        M0,        M0,     MIdent,    M0,       M0,
+                 M0,        M0,        M0,     M0,        MIdent,   M0,
+                 M0,        M0,        M0,     M0,        M0,       MIdent;      
     return F_dxstate;
 }
 
-Eigen::MatrixXf cov_predict(const Eigen::MatrixXf& P_old, const Eigen::VectorXf& Fx, const Eigen::VectorXf& Fi, const Eigen::VectorXf& Qi)
+Eigen::MatrixXf eskf_odometry::cov_predict(const Eigen::VectorXf& P_old, const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt)
 {
-// %   Inputs:
-// %       - P_old:        Covariance matrix at time k-1.
-// %       - Fx:           ESKF Transition matrix.
-// %       - Fi:           Jacobian that maps the IMU covariance.
-// %       - Qi:           Imu covariance matrix.
-// % 
-// %   Outputs:
-// %       - P:            Covariance matrix at time k.
-    // %Covariance matrix
-    // P = Fx*P_old*Fx'+ Fi*Qi*Fi';
-    // P = (P + P')/2; %force symmetric
+    // Covariance Error Propagation
+    // IMU transition matrix from error state (ESKF) 
+    Eigen::MatrixXf F_dxstate(18,18);
+    F_dxstate = imu_trans_mat(xstate, a_s, w_s, dt);
+    std::cout << F_dxstate << std::endl;
+
+    //- P_old:        Covariance matrix at time k-1.
+    //- F_dxstate:           ESKF Transition matrix.
+    //- Fi:           Jacobian that maps the IMU covariance.
+    //- Qi:           Imu covariance matrix.
+    //- P:            Covariance matrix at time k.
     Eigen::MatrixXf P(18,18);
-    P = Fx*P_old*Fx.adjoint() + Fi*Qi*Fi.adjoint(); // 18*18
-    // P = Fx*P_old;
+    P = F_dxstate*P_old*F_dxstate.adjoint() + FiQi; // 18*18
+    P = (P + P.adjoint())*0.5;    //force symmetric
     return P;
 }
 
@@ -165,17 +171,24 @@ void eskf_odometry::set_imu_reading(const float& dt_imu, const Eigen::Vector3f& 
     std::cout << "Initial Nominal-State vector (p,v,q,ab,wb,g) size " << xtrue.size() << std::endl;
     // std::cout << "Nominal-State vector (p,v,q,ab,wb,g) size " << xstate_nom.size() << std::endl;
 
-    // Covariance Error Propagation
-    // IMU transition matrix from error state (ESKF) 
-    Eigen::MatrixXf F_dxstate(18,18);
-    F_dxstate = imu_trans_mat(xtrue,a,w,dt_imu);
-    std::cout << "F_dxstate size " << F_dxstate.size() << std::endl;
-
     // Covariance Prediction ESKF
-    Eigen::MatrixXf P(18,18);
-    P = cov_predict(Ptrue,F_dxstate,Fi,Qi);
+    Ptrue = cov_predict(Ptrue,xtrue,a,w,dt_imu);
     std::cout << "Prediction ESKF size " << Ptrue.size() << std::endl;
+    // std::cout <<  Ptrue << std::endl;
+    vPtrue_ = Ptrue.diagonal();
+    Eigen::VectorXf qvector = vPtrue_.segment(6,3);
+    Eigen::Quaternionf q = vec2q(qvector).normalized();    
+    Eigen::Vector4f q1_norm(q.w(), q.x(), q.y(), q.z());
 
+    // Eigen::VectorXf p = vPtrue_.segment(0,3);
+    // Eigen::VectorXf v = vPtrue_.segment(3,3);
+    // Eigen::VectorXf q = q1_norm;
+    // Eigen::VectorXf ab = vPtrue_.segment(9,3);
+    // Eigen::VectorXf wb = vPtrue_.segment(12,3);
+    // Eigen::VectorXf g = vPtrue_.segment(15,3);
+
+    vPtrue << vPtrue_.segment(0,3), vPtrue_.segment(3,3), q1_norm, vPtrue_.segment(9,3), vPtrue_.segment(12,3), vPtrue_.segment(15,3);
+    // std::cout << "vPtrue  " << vPtrue << std::endl;
 
 }
 
@@ -206,8 +219,10 @@ Eigen::VectorXf eskf_odometry::mean_predict(const Eigen::VectorXf& xstate, const
     // Method zero-th backward
     Eigen::Vector3f a;
     Eigen::Quaternionf q_nom_eigen{q_nom(0), q_nom(1), q_nom(2), q_nom(3)};
-    a = q2R(q_nom_eigen)*(a_s - ab)+g; // 3x3 * 1x3 = 3*1 
-
+    Eigen::Matrix3f R;
+    q2R(q_nom_eigen,R);  
+    a = R*(a_s - ab)+g; // 3x3 * 1x3 = 3*1
+    std::cout << "a " << a << std::endl;
     // Position and Velocity
     Eigen::VectorXf p_nom;
     Eigen::VectorXf v_nom;    
@@ -236,6 +251,12 @@ Eigen::VectorXf eskf_odometry::qPredict(const Eigen::VectorXf& q_, const Eigen::
     // Return vector
     Eigen::Vector4f q1_norm(q1.w(), q1.x(), q1.y(), q1.z());
     return q1_norm;
+}
+
+void eskf_odometry::update(Eigen::VectorXf& state, Eigen::VectorXf& covPtrue)
+{
+    state = xtrue;
+    covPtrue = vPtrue;
 }
 
 

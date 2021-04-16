@@ -6,7 +6,7 @@ find_package(catkin REQUIRED)
 # ******************************************************************** 
 #                 Add catkin additional components here
 # ******************************************************************** 
-find_package(catkin REQUIRED COMPONENTS iri_base_algorithm geometry_msgs std_msgs nav_msgs roscpp roslib px_comm sensor_msgs tf)
+find_package(catkin REQUIRED COMPONENTS iri_base_algorithm geometry_msgs std_msgs nav_msgs roscpp roslib px_comm sensor_msgs tf message_generation)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -25,11 +25,12 @@ find_package(atools REQUIRED)
 #           Add topic, service and action definition here
 # ******************************************************************** 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(   
+   FILES
+   dxstate.msg
+   vP.msg
+   xstate.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -46,10 +47,11 @@ find_package(atools REQUIRED)
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs
+)
 
 # ******************************************************************** 
 #                 Add the dynamic reconfigure file 
@@ -65,7 +67,7 @@ catkin_package(
 # ******************************************************************** 
 #            Add ROS and IRI ROS run time dependencies
 # ******************************************************************** 
- CATKIN_DEPENDS iri_base_algorithm geometry_msgs std_msgs nav_msgs roscpp roslib px_comm sensor_msgs tf
+ CATKIN_DEPENDS iri_base_algorithm geometry_msgs std_msgs nav_msgs roscpp roslib px_comm sensor_msgs tf message_runtime
 # ******************************************************************** 
 #      Add system and labrobotica run time dependencies here
 # ******************************************************************** 

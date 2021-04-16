@@ -4,6 +4,9 @@
 // Eigen
 #include <Eigen/Dense>
 
+// Get the floating point relative accurancy
+// float EPS_ = std::nextafterf(0.0, 1);s
+
 struct params {
     Eigen::VectorXf dp0_std ;
     Eigen::VectorXf dv0_std;
@@ -67,9 +70,12 @@ class eskf_odometry
 public:
         params f_params_;
         Eigen::VectorXf xtrue = Eigen::VectorXf(33);
-        Eigen::MatrixXf Ptrue = Eigen::MatrixXf::Identity(18,18);
+        Eigen::MatrixXf Ptrue = Eigen::MatrixXf::Identity(18,18);       
+        Eigen::VectorXf vPtrue_ = Eigen::VectorXf(18); 
+        Eigen::VectorXf vPtrue = Eigen::VectorXf(19);
         Eigen::MatrixXf Qi = Eigen::MatrixXf::Identity(12,12);
         Eigen::MatrixXf Fi = Eigen::MatrixXf::Zero(18,12);
+        Eigen::MatrixXf FiQi = Eigen::MatrixXf::Zero(18,18);        
 
         Eigen::VectorXf dx0_;
         // Init cov matrice
@@ -144,6 +150,10 @@ public:
          *      - q1:   Quaternion after a rotation in body frame.
          */
         Eigen::VectorXf qPredict(const Eigen::VectorXf& q, const Eigen::Vector3f& w, const float& dt);
+
+        Eigen::MatrixXf cov_predict(const Eigen::VectorXf& P_old, const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt);
+
+        void update(Eigen::VectorXf& state, Eigen::VectorXf& covPtrue);
 };
 
 

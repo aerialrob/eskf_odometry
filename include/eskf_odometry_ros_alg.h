@@ -434,6 +434,8 @@ class EskfOdomAlgorithm
          */
         bool update(Eigen::VectorXf& state, Eigen::Vector3f& ang_vel, const bool& flying, const float& gnd_dist);
 
+        void update(Eigen::VectorXf& state,Eigen::VectorXf& covPtrue);
+
         /**
          * \brief Destructor
          *
