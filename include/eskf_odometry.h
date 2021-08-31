@@ -7,6 +7,7 @@
 // Get the floating point relative accurancy
 // float EPS_ = std::nextafterf(0.0, 1);s
 
+
 struct params {
     Eigen::VectorXf dp0_std ;
     Eigen::VectorXf dv0_std;
@@ -69,13 +70,16 @@ class eskf_odometry
 {
 public:
         params f_params_;
-        Eigen::VectorXf xtrue = Eigen::VectorXf(33);
+        Eigen::VectorXf xtrue = Eigen::VectorXf(33);            // dejar en 19 posiciones
         Eigen::MatrixXf Ptrue = Eigen::MatrixXf::Identity(18,18);       
         Eigen::VectorXf vPtrue_ = Eigen::VectorXf(18); 
         Eigen::VectorXf vPtrue = Eigen::VectorXf(19);
         Eigen::MatrixXf Qi = Eigen::MatrixXf::Identity(12,12);
         Eigen::MatrixXf Fi = Eigen::MatrixXf::Zero(18,12);
-        Eigen::MatrixXf FiQi = Eigen::MatrixXf::Zero(18,18);        
+        Eigen::MatrixXf FiQi = Eigen::MatrixXf::Zero(18,18);
+
+        // Definicion a y w para guardar directamente última lectura de la imu 
+
 
         Eigen::VectorXf dx0_;
         // Init cov matrice
@@ -112,16 +116,26 @@ public:
          */
         void print_ini_params();
         /**
-         * \brief Set IMU Readings
+         * \brief propagate_imu
          *
-         * Store new IMU readings
+         * Mean State Prediction and Covariance Prediction ESKF   error-state
          *
          * Input:
          *   dt: Time stamp.
          *   a: Acc. readings (m/s^2). a = [ax,ay,az].
          *   w: Gyro. readings (rad/s). w = [wx,wy,wz].
          */
-        void set_imu_reading(const float& dt_imu, const Eigen::Vector3f& a, const Eigen::Vector3f& w);
+        void propagate_imu(const float& dt_imu, const Eigen::Vector3f& a, const Eigen::Vector3f& w);
+
+        /**
+         * \brief set_pose_reading                  
+         * Store new pose readings
+         *
+         * Input:
+         *   t: Time stamp.
+         *   val: pos x,y,z and q    
+         */
+        void set_pose_reading(const float& t, const Eigen::VectorXf& val);
         /**
          * \brief MEAN STATE PREDICTION
          *
@@ -137,9 +151,9 @@ public:
          */
         Eigen::VectorXf mean_predict(const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt);
         /**
-         * \brief MEAN STATE PREDICTION
+         * \brief q mean state prediction
          *
-         * Returns the prediction step for the nominal-state vector.
+         * Returns the q prediction step for the nominal-state vector.
          *
          *   Inputs:
          *      - q:    Quaternion.

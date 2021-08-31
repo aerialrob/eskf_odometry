@@ -47,21 +47,10 @@ void EskfOdomAlgorithm::print_ini_params(void)
 //     // this->filter_.set_imu_params(imu);
 // }
 
-void EskfOdomAlgorithm::set_imu_reading(const float& t, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& q, const Eigen::Quaternionf& nwu_q_imu)
+void EskfOdomAlgorithm::propagate_imu(const float& dt, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& nwu_q_imu)
 {
-    Eigen::Translation<float,3> nwu_p_imu(0.0,0.0,0.0);
-    TransformType nwuTimu = nwu_p_imu*nwu_q_imu;
+//      In case Imu has other orientation
 
-    Eigen::Quaternionf nwu_q = nwu_q_imu*q;
-    Eigen::Vector3f eul;
-    atools::q2e(nwu_q,eul);
-    // this->filter_.set_orientation_reading(t,eul);
-
-    set_imu_reading(t,a,w,nwu_q_imu);
-}
-
-void EskfOdomAlgorithm::set_imu_reading(const float& dt, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& nwu_q_imu)
-{
 //    std::string imu_frame_ori = "SWD";
 //
 //    // IMU NWU -> IMU transform
@@ -92,7 +81,7 @@ void EskfOdomAlgorithm::set_imu_reading(const float& dt, const Eigen::Vector3f& 
     Eigen::Vector3f nwu_a = nwuTimu*a;
     Eigen::Vector3f nwu_w = nwuTimu*w;
 
-    this->filter_.set_imu_reading(dt,nwu_a,nwu_w);
+    this->filter_.propagate_imu(dt,nwu_a,nwu_w);
 }
 
 // Sensor::pose_params EskfOdomAlgorithm::get_pose_params(void)
@@ -117,7 +106,7 @@ void EskfOdomAlgorithm::set_imu_reading(const float& dt, const Eigen::Vector3f& 
 
 void EskfOdomAlgorithm::set_pose_reading(const float& t, const Eigen::VectorXf& val)
 {
-    // this->filter_.set_pose_reading(t,val);
+    this->filter_.set_pose_reading(t,val);
 }
 
 void EskfOdomAlgorithm::set_pose2_reading(const float& t, const Eigen::VectorXf& val)

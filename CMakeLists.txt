@@ -99,7 +99,7 @@ add_executable(${PROJECT_NAME} src/eskf_odometry_ros_alg.cpp src/eskf_odometry_r
 #                   Add the libraries
 # ******************************************************************** 
 # target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${eskf_odometry_LIBRARY} ${atools_LIBRARY})
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${atools_LIBRARY} eskf_odometry)
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${atools_LIBRARY} eskf_odometry )
 
 # ******************************************************************** 
 #               Add message headers dependencies 

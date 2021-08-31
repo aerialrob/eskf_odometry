@@ -45,18 +45,6 @@ range_min: 0.31
 range_max: 4.0
 using_laser_range: true
 
-# PX4 STD values
-px4_std_outsidebounds: [10.0,10.0,10.0]
-px4_std_insidebounds: [0.01,0.15,0.15]
-using_laser_px4: true
-px4_use_vxy: true
-
-# Flow2d STD values
-flow2d_std_outsidebounds: [10.0,10.0]
-flow2d_std_insidebounds: [0.15,0.15]
-# focal_length in pixels
-flow2d_focal_length: 73
-
 # Initial Nominal-State vector (p,v,q,ab,wb,g)
 xstate0: [0.0,0.0,0.15,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-9.803057,0.0,0.0,-0.1,0.0,0.0,0.0,1.0,0.0,0.0,-0.1,1.0,0.0,0.0,0.0]
 

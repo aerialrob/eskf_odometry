@@ -71,17 +71,13 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         Eigen::VectorXf range_dist_; // Ground distance (m) obtained from PX4 optical flow pointing downward.
 
         bool is_first_imu_;        // First IMU reading should not contribute to propagate nominal (integration requirements). Also used to get initial sensor time.
-        bool is_first_range_;      // Used to get initial sensor time.
-        bool is_first_flow2d_;     // Used to get initial sensor time.
-        bool is_first_px4_;        // Used to get initial sensor time.
+        bool is_first_range_;      // Used to get initial sensor time.              
         bool is_first_odom_;       // Used to get initial sensor time.
         bool is_first_odom2_;       // Used to get initial sensor time.
         bool is_first_position_;   // Used to get initial sensor time.
 
         double t_ini_imu_;    // Initial IMU sensor time.
-        double t_ini_range_;  // Initial RANGE sensor time.
-        double t_ini_flow2d_; // Initial RANGE sensor time.
-        double t_ini_px4_;    // Initial PX4 sensor time.
+        double t_ini_range_;  // Initial RANGE sensor time.              
         double t_ini_odom_;   // Initial Odome sensor time.
         double t_ini_odom2_;   // Initial Odome sensor time.
         double t_ini_position_;   // Initial Odome sensor time.
@@ -135,24 +131,11 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         void odom2_mutex_enter(void);
         void odom2_mutex_exit(void);
 
-        ros::Subscriber flow2d_subscriber_;
-        void flow2d_callback(const std_msgs::Float32MultiArray::ConstPtr& msg);
-        pthread_mutex_t flow2d_mutex_;
-        void flow2d_mutex_enter(void);
-        void flow2d_mutex_exit(void);
-
         ros::Subscriber range_subscriber_;
         void range_callback(const sensor_msgs::Range::ConstPtr& msg);
         pthread_mutex_t range_mutex_;
         void range_mutex_enter(void);
         void range_mutex_exit(void);
-
-        ros::Subscriber px4_of_subscriber_;
-        void px4_of_callback(const px_comm::OpticalFlow::ConstPtr& msg);
-        pthread_mutex_t px4_of_mutex_;
-        void px4_of_mutex_enter(void);
-        void px4_of_mutex_exit(void);
-        void set_px4_reading(const px_comm::OpticalFlow::ConstPtr& msg,const float& msg_time);
 
         ros::Subscriber imu_subscriber_;
         void imu_callback(const sensor_msgs::Imu::ConstPtr& msg);

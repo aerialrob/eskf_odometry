@@ -2,22 +2,23 @@
 
 <launch>
 
+  <node pkg="rosbag" type="play" name="player"
+  args="--clock /home/andres.palomino/ROS_resources/eskf_odometry_ros/src/imu_bag_static.bag"/>
+
   <arg name="params_file" default="$(find eskf_odometry_ros)/launch/params.yaml"/>
   
   <arg name="imu_topic"      default="/dji_sdk/imu"/>
   <arg name="range_topic"    default="/range"/>
   <arg name="odom_in_topic"  default="/kinton/odom_in"/>
   <arg name="odom2_in_topic" default="/kinton/odom2_in"/>
-  <arg name="odom_out_topic" default="/odometry_fused"/>
-  <arg name="px4flow_topic"  default="/px4flow/opt_flow"/>
+  <arg name="odom_out_topic" default="/odometry_fused"/>  
   
   <arg name="world_frame_id"    default="world"/>
   <arg name="robot_frame_id"    default="matrice_base_link"/>
   <arg name="odom_out_frame_id" default="odom"/>
   <arg name="odom_in_frame_id"  default="odom_gps"/>
   <arg name="odom2_in_frame_id" default="odom_gps"/>
-  <arg name="imu_frame_id"      default="matrice_base_link"/>
-  <arg name="px4flow_frame_id"  default="camera_bottom_base"/>
+  <arg name="imu_frame_id"      default="matrice_base_link"/>  
 
   <node name="eskf_odometry_ros" pkg="eskf_odometry_ros" type="eskf_odometry_ros" output="screen">
     <rosparam file="$(arg params_file)" command="load"/>
@@ -26,8 +27,7 @@
     <param name="odom_out_frame_id" type="string" value="$(arg odom_out_frame_id)"/>
     <param name="odom_in_frame_id"  type="string" value="$(arg odom_in_frame_id)"/>
     <param name="odom2_in_frame_id" type="string" value="$(arg odom2_in_frame_id)"/>
-    <param name="imu_frame_id"      type="string" value="$(arg imu_frame_id)"/>
-    <param name="px4flow_frame_id"  type="string" value="$(arg px4flow_frame_id)"/>
+    <param name="imu_frame_id"      type="string" value="$(arg imu_frame_id)"/>    
     <remap from="~imu"      to="$(arg imu_topic)"/>
     <remap from="~range"    to="$(arg range_topic)"/>
     <remap from="~odom_in"  to="$(arg odom_in_topic)"/>

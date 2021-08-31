@@ -199,13 +199,12 @@ class EskfOdomAlgorithm
          * Store new IMU readings
          *
          * Input:
-         *   t: Time stamp.
+         *   t: Time stamp difference from initial callback time.
          *   a: Acc. readings (m/s^2). a = [ax,ay,az].
          *   w: Gyro. readings (rad/s). w = [wx,wy,wz].
          *   q: Orientation [OPTIONAL]. q = [qw,qx,qy,qz].
          */
-        void set_imu_reading(const float& dt, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& nwu_q_imu);
-        void set_imu_reading(const float& t, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& q, const Eigen::Quaternionf& nwu_q_imu);
+        void propagate_imu(const float& dt, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& nwu_q_imu);        
 
         /**
          * \brief Get pose parameters
