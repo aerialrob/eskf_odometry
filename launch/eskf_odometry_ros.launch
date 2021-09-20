@@ -2,14 +2,14 @@
 
 <launch>
 
-  <node pkg="rosbag" type="play" name="player"
-  args="--clock /home/andres.palomino/ROS_resources/eskf_odometry_ros/src/imu_bag_static.bag"/>
+  <node pkg="rosbag" type="play" name="player" output="screen" 
+  args="--clock /home/andres.palomino/ROS_resources/eskf_odometry_ros/src/flight_bag_2.bag"/>
 
   <arg name="params_file" default="$(find eskf_odometry_ros)/launch/params.yaml"/>
   
   <arg name="imu_topic"      default="/dji_sdk/imu"/>
   <arg name="range_topic"    default="/range"/>
-  <arg name="odom_in_topic"  default="/kinton/odom_in"/>
+  <arg name="odom_in_topic"  default="/msg_adapter/odometry_selected"/>
   <arg name="odom2_in_topic" default="/kinton/odom2_in"/>
   <arg name="odom_out_topic" default="/odometry_fused"/>  
   

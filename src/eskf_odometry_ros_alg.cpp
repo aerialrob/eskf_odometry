@@ -27,9 +27,14 @@ void EskfOdomAlgorithm::config_update(Config& new_cfg, uint32_t level)
 //     // this->filter_.set_init_params(f_params,x0,dx0,imu,pose,pose2,position,orientation,linvel,range,px4,flow2d);
 // }
 
-void EskfOdomAlgorithm::set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu,const Sensor::pose_params& pose,const Sensor::pose_params& pose2,const Sensor::position_params& position,const Sensor::orientation_params& orientation,const Sensor::linvel_params& linvel)
+// void EskfOdomAlgorithm::set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu,const Sensor::pose_params& pose,const Sensor::pose_params& pose2,const Sensor::position_params& position,const Sensor::orientation_params& orientation,const Sensor::linvel_params& linvel)
+// {
+//     this->filter_.set_init_params(f_params,x0,dx0,imu,pose,pose2,position,orientation,linvel);
+// }
+
+void EskfOdomAlgorithm::set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation)
 {
-    this->filter_.set_init_params(f_params,x0,dx0,imu,pose,pose2,position,orientation,linvel);
+    this->filter_.set_init_params(f_params, x0, dx0, imu, position, orientation );
 }
 
 void EskfOdomAlgorithm::print_ini_params(void)
@@ -47,7 +52,7 @@ void EskfOdomAlgorithm::print_ini_params(void)
 //     // this->filter_.set_imu_params(imu);
 // }
 
-void EskfOdomAlgorithm::propagate_imu(const float& dt, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& nwu_q_imu)
+int EskfOdomAlgorithm::set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw, const Eigen::Quaternionf& nwu_q_imu)
 {
 //      In case Imu has other orientation
 
@@ -81,7 +86,11 @@ void EskfOdomAlgorithm::propagate_imu(const float& dt, const Eigen::Vector3f& a,
     Eigen::Vector3f nwu_a = nwuTimu*a;
     Eigen::Vector3f nwu_w = nwuTimu*w;
 
-    this->filter_.propagate_imu(dt,nwu_a,nwu_w);
+    // this->filter_.a_ = a;
+    // this->w_ = w;
+    int result;
+    result = this->filter_.set_imu_reading(t_msg, nwu_a, nwu_w, Ra, Rw);
+    return result;
 }
 
 // Sensor::pose_params EskfOdomAlgorithm::get_pose_params(void)
@@ -104,9 +113,18 @@ void EskfOdomAlgorithm::propagate_imu(const float& dt, const Eigen::Vector3f& a,
 //     // this->filter_.set_pose2_params(pose);
 // }
 
-void EskfOdomAlgorithm::set_pose_reading(const float& t, const Eigen::VectorXf& val)
+int EskfOdomAlgorithm::set_position_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R)
 {
-    this->filter_.set_pose_reading(t,val);
+    int result;
+    result = this->filter_.set_position_reading(t_msg, msg, R);
+    return result;
+}
+
+int EskfOdomAlgorithm::set_magnetometer_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R)
+{
+    int result;
+    result = this->filter_.set_magnetometer_reading(t_msg, msg, R);
+    return result;
 }
 
 void EskfOdomAlgorithm::set_pose2_reading(const float& t, const Eigen::VectorXf& val)

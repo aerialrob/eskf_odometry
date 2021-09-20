@@ -143,7 +143,7 @@ class EskfOdomAlgorithm
          *
          */
         void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu,const Sensor::pose_params& pose,const Sensor::pose_params& pose2,const Sensor::position_params& position,const Sensor::orientation_params& orientation,const Sensor::linvel_params& linvel);
-
+        void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation);
 
         /**
          * \brief Print initial parameters
@@ -199,13 +199,13 @@ class EskfOdomAlgorithm
          * Store new IMU readings
          *
          * Input:
-         *   t: Time stamp difference from initial callback time.
+         *   t_msg: Time stamp
          *   a: Acc. readings (m/s^2). a = [ax,ay,az].
          *   w: Gyro. readings (rad/s). w = [wx,wy,wz].
          *   q: Orientation [OPTIONAL]. q = [qw,qx,qy,qz].
          */
-        void propagate_imu(const float& dt, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& nwu_q_imu);        
-
+        int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& nwu_q_imu);        
+        int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw, const Eigen::Quaternionf& nwu_q_imu);
         /**
          * \brief Get pose parameters
          *
@@ -239,15 +239,28 @@ class EskfOdomAlgorithm
         // void set_pose2_params(Sensor::pose_params& pose);
 
         /**
-         * \brief Set Pose Readings
+         * \brief Set Position Readings
          *
          * Store new Pose readings
          *
          * Input:
-         *   t: Time stamp.
-         *   val: Pose reading = [p_x,p_y,p_z,r_x,r_y,r_z].
-         */
-        void set_pose_reading(const float& t, const Eigen::VectorXf& val);
+         *   t_msg: Sensor time msg 
+         *   msg: Position reading = [p_x,p_y,p_z].
+         *   R: Sensor covariance matrix 
+         */        
+        int set_position_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R);
+
+        /**
+         * \brief Set Position Readings
+         *
+         * Store new Pose readings
+         *
+         * Input:
+         *   t_msg: Sensor time msg 
+         *   msg: Magnetic field
+         *   R: Sensor covariance matrix 
+         */ 
+        int set_magnetometer_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R);
 
         /**
          * \brief Set Pose 2 Readings

@@ -1,5 +1,3 @@
-# eskf_odometry
-
 # ROS wrapper of the Error-State Kalman Filter based Odometry
 
 
@@ -22,6 +20,17 @@ You have to install Angel Santamaria-Navarro tools library:
   $ cmake ..
   $ make
   $ sudo make install
+```
+### eskf_odometry Library
+
+This is the main ESKF library from Angel Santamaria-Navarro. To install it run:
+
+```
+  $ git clone https://gitlab.com/asantamarianavarro/code/state_estimation/eskf_odometry/eskf_odometry.git
+  $ cd eskf_odometry/build
+  $ cmake ..
+  $ make
+  $ sudo make install 
 ```
 
 ### ROS

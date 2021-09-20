@@ -44,6 +44,7 @@
 #include <geometry_msgs/PointStamped.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <sensor_msgs/Range.h>
+#include <sensor_msgs/MagneticField.h>
 #include <nav_msgs/Odometry.h>
 #include <px_comm/OpticalFlow.h>
 #include <sensor_msgs/Imu.h>
@@ -77,8 +78,11 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         bool is_first_position_;   // Used to get initial sensor time.
 
         double t_ini_imu_;    // Initial IMU sensor time.
+        double t_prev_imu_;     // Prev IMU sensor time.
         double t_ini_range_;  // Initial RANGE sensor time.              
         double t_ini_odom_;   // Initial Odome sensor time.
+        double t_odom_;         // Current Odome sensor time.
+        double t_prev_odom_;   // Prev Odome sensor time.
         double t_ini_odom2_;   // Initial Odome sensor time.
         double t_ini_position_;   // Initial Odome sensor time.
 
@@ -97,6 +101,9 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         Eigen::Quaternionf nwu_q_odomin_; // Rotation of frame NWU w.r.t. current ODOM frame (i.e. expressed in current FLOW frame).
         Eigen::Quaternionf nwu_q_odom2in_; // Rotation of frame NWU w.r.t. current ODOM 2 frame (i.e. expressed in current FLOW frame).
 
+        Eigen::Vector3f imu_w_std;
+        Eigen::Vector3f imu_a_std;
+
         bool got_odom_tf_offset_; // Flag to get only the first tf transform when starts running and the tf tree is complete.
 
         bool px4_use_vxy_; // Use Vxy update. Flase uses Flow2D.
@@ -110,6 +117,7 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         ros::Publisher odom_publisher_;
         ros::Publisher state_publisher_;
         ros::Publisher cov_publisher_;
+        ros::Publisher magnetic_publisher_;
         nav_msgs::Odometry odom_msg_;
 
         // [subscriber attributes]
@@ -142,7 +150,7 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         pthread_mutex_t imu_mutex_;
         void imu_mutex_enter(void);
         void imu_mutex_exit(void);
-        void set_imu_reading(const sensor_msgs::Imu::ConstPtr& msg,const float& msg_time);
+        void set_imu_reading(const sensor_msgs::Imu::ConstPtr& msg,const float& t_msg);
 
         // [service attributes]
         ros::ServiceServer flying_server_;
