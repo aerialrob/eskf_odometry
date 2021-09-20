@@ -3,7 +3,7 @@
 <launch>
 
   <node pkg="rosbag" type="play" name="player" output="screen" 
-  args="--clock /home/andres.palomino/ROS_resources/eskf_odometry_ros/src/flight_bag_2.bag"/>
+  args="--clock $(find eskf_odometry_ros)/bag/flight_test.bag"/>
 
   <arg name="params_file" default="$(find eskf_odometry_ros)/launch/params.yaml"/>
   
