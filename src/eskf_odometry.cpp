@@ -240,6 +240,8 @@ void eskf_odometry::set_init_params(const params& f_params, const Eigen::VectorX
     std::cout << "Ptrue0" << std::endl;
     std::cout << Ptrue0 << std::endl;
 
+    Ptrue = Ptrue0;
+
 }
 
 void eskf_odometry::print_ini_params()
@@ -353,7 +355,11 @@ void eskf_odometry::propagate_state()
     std::cout << a_ << std::endl;
     std::cout << "w_ " << std::endl;
     std::cout << w_ << std::endl;
-    Ptrue = cov_predict(Ptrue, external_state, a_, w_, dt_filter);
+
+    cov_predict(external_state, a_, w_, dt_filter, Ptrue);
+
+
+    // Ptrue = cov_predict(Ptrue, external_state, a_, w_, dt_filter);
     // std::cout << "Prediction ESKF size " << Ptrue.size() << std::endl;
     // std::cout <<  Ptrue << std::endl;
     // To compose matrix
@@ -371,7 +377,7 @@ void eskf_odometry::propagate_state()
     // Eigen::VectorXf g = vPtrue_.segment(15,3);
 
     vPtrue << vPtrue_.segment(0,3), vPtrue_.segment(3,3), q1_norm, vPtrue_.segment(9,3), vPtrue_.segment(12,3), vPtrue_.segment(15,3);
-    std::cout << "vPtrue  " << vPtrue << std::endl;
+    // std::cout << "vPtrue  " << vPtrue << std::endl;
 
 }
 
@@ -442,13 +448,15 @@ Eigen::VectorXf eskf_odometry::qPredict(const Eigen::VectorXf& q_, const Eigen::
 }
 
 //-----------------Imu Covariance Error Propagation  ESKF Transition matrix.---------------------
-Eigen::MatrixXf eskf_odometry::cov_predict(const Eigen::VectorXf& P_old, const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt)
+// Eigen::MatrixXf eskf_odometry::cov_predict(const Eigen::VectorXf& P_old, const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt)
+void eskf_odometry::cov_predict(const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt, Eigen::MatrixXf& P_old)
 {
     // Covariance Error Propagation
     // IMU transition matrix from error state (ESKF) 
     Eigen::MatrixXf F_dxstate(18,18);
     //- F_dxstate:           ESKF Transition matrix.
     F_dxstate = imu_trans_mat(xstate, a_s, w_s, dt);
+    // std::cout << "F_dxstate" << std::endl;
     // std::cout << F_dxstate << std::endl;
 
     //- P_old:        Covariance matrix at time k-1.    
@@ -456,14 +464,31 @@ Eigen::MatrixXf eskf_odometry::cov_predict(const Eigen::VectorXf& P_old, const E
     //- Qi:           Imu covariance matrix.
     //- P:            Covariance matrix at time k.
     Eigen::MatrixXf P(18,18);     
-    Qi << Ra_ ,  Rw_ , Eigen::MatrixXf::Zero(6,6);      
+    Qi << Ra_ , Eigen::MatrixXf::Zero(3,9), 
+        Eigen::MatrixXf::Zero(3,3), Rw_, Eigen::MatrixXf::Zero(3,6),
+        Eigen::MatrixXf::Zero(6,12); 
+
+    std::cout << "Qi" << std::endl;
+    std::cout << Qi << std::endl;
     Fi << Eigen::MatrixXf::Zero(3,12), Eigen::MatrixXf::Identity(12,12), Eigen::MatrixXf::Zero(3,12);
         
     FiQi = Fi*Qi*Fi.adjoint();
+    std::cout << "FiQi" << std::endl;
+    std::cout << FiQi << std::endl;
 
-    P = F_dxstate * P_old * F_dxstate.adjoint() + FiQi; // 18*18    transpose()
-    P = (P + P.adjoint()) * 0.5;    //force symmetric
-    return P;
+    P_old = F_dxstate * P_old * F_dxstate.adjoint() + FiQi; // 18*18    transpose()
+    P_old = (P_old + P_old.adjoint()) * 0.5;    //force symmetric
+    std::cout << "P_old" << std::endl;
+    std::cout << P_old << std::endl;
+    // return P;
+
+
+
+    // P = F_dxstate * P_old * F_dxstate.adjoint() + FiQi; // 18*18    transpose()
+    // P = (P + P.adjoint()) * 0.5;    //force symmetric
+    // std::cout << "P" << std::endl;
+    // std::cout << P << std::endl;
+    // return P;
 }
 
 int eskf_odometry::set_position_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R)
@@ -562,8 +587,8 @@ void eskf_odometry::correct_state(const Eigen::VectorXf&y, const Eigen::VectorXf
     // New covariance forcing a positive and symetric matrix
     Ptrue = Ptrue - K * Z * K.transpose(); //18x18 - (18x3 * 3x3 * 3x18)
     Ptrue = (Ptrue + Ptrue.transpose())*0.5;  //force symmetric
-    std::cout << "Ptrue size: " << Ptrue.size() << std::endl;
-    std::cout << Ptrue << std::endl;
+    // std::cout << "Ptrue size: " << Ptrue.size() << std::endl;
+    // std::cout << Ptrue << std::endl;
 }
 
 void eskf_odometry::reset_state()

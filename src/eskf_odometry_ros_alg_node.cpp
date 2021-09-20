@@ -727,9 +727,9 @@ void EskfOdomAlgNode::set_imu_reading(const sensor_msgs::Imu::ConstPtr& msg, con
     //       msg->linear_acceleration_covariance[3], msg->linear_acceleration_covariance[4], msg->linear_acceleration_covariance[5],
     //       msg->linear_acceleration_covariance[6], msg->linear_acceleration_covariance[7], msg->linear_acceleration_covariance[8];  
 
-    Ra << 0.0005, msg->linear_acceleration_covariance[1], msg->linear_acceleration_covariance[2],
-        msg->linear_acceleration_covariance[3], 0.0005, msg->linear_acceleration_covariance[5],
-        msg->linear_acceleration_covariance[6], msg->linear_acceleration_covariance[7], 0.0005;  
+    Ra << 0.03, msg->linear_acceleration_covariance[1], msg->linear_acceleration_covariance[2],
+        msg->linear_acceleration_covariance[3], 0.03, msg->linear_acceleration_covariance[5],
+        msg->linear_acceleration_covariance[6], msg->linear_acceleration_covariance[7], 0.03;  
 
     ROS_INFO_STREAM("Ra " << Ra);                 
     ROS_INFO_STREAM("Rw " << Rw);            
