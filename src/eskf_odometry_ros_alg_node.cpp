@@ -25,8 +25,8 @@ algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm>()
 
     this->is_first_imu_ = true;
     this->is_first_range_ = true;        
-    this->is_first_odom_ = true;
-    this->is_first_odom2_ = true;
+    this->is_first_odom_ = true;    
+    this->is_first_magnetometer_ = true;    
     this->is_first_position_ = true;
 
     // Initialize ROS Time objects
@@ -41,6 +41,7 @@ algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm>()
     this->odom_publisher_ = this->public_node_handle_.advertise<nav_msgs::Odometry>("odom_out", 1);
     this->state_publisher_ = this->public_node_handle_.advertise<eskf_odometry_ros::xstate>("xstate_out", 1);
     this->cov_publisher_ = this->public_node_handle_.advertise<eskf_odometry_ros::vP>("cov_out", 1);
+    this->dxstate_publisher_ = this->public_node_handle_.advertise<eskf_odometry_ros::dxstate>("dx_out", 1);
     this->magnetic_publisher_ = this->public_node_handle_.advertise<sensor_msgs::MagneticField>("magnetic_msg", 1);
 
     // [init subscribers]
@@ -50,14 +51,17 @@ algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm>()
     this->odom_subscriber_ = this->public_node_handle_.subscribe("odom_in", 1, &EskfOdomAlgNode::odom_callback, this);
     pthread_mutex_init(&this->odom_mutex_,NULL);
 
-    this->odom2_subscriber_ = this->public_node_handle_.subscribe("odom2_in", 1, &EskfOdomAlgNode::odom2_callback, this);
-    pthread_mutex_init(&this->odom2_mutex_,NULL);
-
     this->range_subscriber_ = this->public_node_handle_.subscribe("range", 1, &EskfOdomAlgNode::range_callback, this);
     pthread_mutex_init(&this->range_mutex_,NULL);
 
     this->imu_subscriber_ = this->public_node_handle_.subscribe("imu", 1, &EskfOdomAlgNode::imu_callback, this);
     pthread_mutex_init(&this->imu_mutex_, NULL);
+
+    this->imu2_subscriber_ = this->public_node_handle_.subscribe("imu2", 1, &EskfOdomAlgNode::imu2_callback, this);
+    pthread_mutex_init(&this->imu2_mutex_, NULL);
+
+    this->magnetometer_subscriber_ = this->public_node_handle_.subscribe("magnetometer", 1, &EskfOdomAlgNode::magnetometer_callback, this);
+    pthread_mutex_init(&this->magnetometer_mutex_, NULL);
 
     // [init services]
     this->flying_server_ = this->public_node_handle_.advertiseService("flying", &EskfOdomAlgNode::flyingCallback, this);
@@ -78,11 +82,12 @@ EskfOdomAlgNode::~EskfOdomAlgNode(void)
 {
     // [free dynamic memory]
     pthread_mutex_destroy(&this->position_in_mutex_);
-    pthread_mutex_destroy(&this->odom_mutex_);
-    pthread_mutex_destroy(&this->odom2_mutex_);
+    pthread_mutex_destroy(&this->odom_mutex_);    
     pthread_mutex_destroy(&this->range_mutex_);
     pthread_mutex_destroy(&this->flying_mutex_);    
     pthread_mutex_destroy(&this->imu_mutex_);
+    pthread_mutex_destroy(&this->imu2_mutex_);
+    pthread_mutex_destroy(&this->magnetometer_mutex_);    
 
     RunThread_ = false;
     Thread_.join();
@@ -94,13 +99,24 @@ void EskfOdomAlgNode::read_and_set_ini_params(void)
     this->public_node_handle_.param<std::string>("robot_frame_id", this->robot_frame_id_, "");
     this->public_node_handle_.param<std::string>("world_frame_id", this->world_frame_id_, "");
     this->public_node_handle_.param<std::string>("odom_out_frame_id", this->odom_out_frame_id_, "");
-    this->public_node_handle_.param<std::string>("odom_in_frame_id", this->odom_in_frame_id_, "");
-    this->public_node_handle_.param<std::string>("odom2_in_frame_id", this->odom2_in_frame_id_, "");
+    this->public_node_handle_.param<std::string>("odom_in_frame_id", this->odom_in_frame_id_, "");    
     this->public_node_handle_.param<std::string>("imu_frame_id",imu_frame_id_,"");
+    this->public_node_handle_.param<std::string>("mag_frame_id",mag_frame_id_,"");
+    this->public_node_handle_.param<std::string>("imu2_frame_id",imu2_frame_id_,"");
 
     // Get relative orientations between robot_base_link (assumed NWU) and the sensors
     TransformType r_T_imu = get_tf_transform(robot_frame_id_, imu_frame_id_);
     nwu_q_imu_ = Eigen::Quaternionf(r_T_imu.rotation());
+    ROS_WARN_STREAM( "IMU TF " << nwu_q_imu_.w() << " " << nwu_q_imu_.x() << " " << nwu_q_imu_.y() <<  " " << nwu_q_imu_.z());
+    
+
+    TransformType r_T_mag = get_tf_transform(robot_frame_id_, mag_frame_id_);
+    nwu_q_mag_ = Eigen::Quaternionf(r_T_mag.rotation());
+    ROS_WARN_STREAM( "MAG TF " << nwu_q_mag_.w() << " " << nwu_q_mag_.x() << " " << nwu_q_mag_.y() <<  " " << nwu_q_mag_.z());
+
+    TransformType r_T_imu2 = get_tf_transform(robot_frame_id_, imu2_frame_id_);
+    nwu_q_imu2_ = Eigen::Quaternionf(r_T_imu2.rotation());
+    ROS_WARN_STREAM( "imu2 TF " << nwu_q_imu2_.w() << " " << nwu_q_imu2_.x() << " " << nwu_q_imu2_.y() <<  " " << nwu_q_imu2_.z());
 
     // TransformType r_T_flow = get_tf_transform(robot_frame_id_, flow_frame_id_);
     // nwu_q_flow_ = Eigen::Quaternionf(r_T_flow.rotation());
@@ -108,8 +124,7 @@ void EskfOdomAlgNode::read_and_set_ini_params(void)
     // TransformType w_T_odom = get_tf_transform(world_frame_id_, odom_in_frame_id_);
     // nwu_q_odomin_ = Eigen::Quaternionf(w_T_odom.rotation());
 
-    // TransformType w_T_odom2 = get_tf_transform(world_frame_id_, odom2_in_frame_id_);
-    // nwu_q_odom2in_ = Eigen::Quaternionf(w_T_odom2.rotation());
+
 
     // Note that the odometry rotation offset should be computed the first time we receive an odometry,
     // because it usually requires to have a close TF tree,
@@ -183,6 +198,10 @@ void EskfOdomAlgNode::read_and_set_ini_params(void)
     pose2_params.std_insidebounds = read_vec("pose2_std_insidebounds", 6);
     pose2_params.std = pose2_params.std_insidebounds;
 
+    //Gravity STD values
+    Sensor::gravity_params gravity_params;
+    gravity_params.std = read_vec("g_std", 3);
+
     // Range STD values
     // Sensor::range_params range_params;
     // double std_outsidebounds, std_insidebounds;
@@ -209,7 +228,7 @@ void EskfOdomAlgNode::read_and_set_ini_params(void)
     // Set filter and sensors initial parameters
     // this->alg_.set_init_params(f_params, x_state, dx_state, imu_params, pose_params, pose2_params, position_params, orientation_params, linvel_params, range_params, px4_params, flow2d_params);
     // this->alg_.set_init_params(f_params, x_state, dx_state, imu_params, pose_params, pose2_params, position_params, orientation_params, linvel_params);
-    this->alg_.set_init_params(f_params, x_state, dx_state, imu_params, position_params, orientation_params);
+    this->alg_.set_init_params(f_params, x_state, dx_state, imu_params, position_params, orientation_params, gravity_params);
     
 
     // Print already set values of filter and sensors initial parameters
@@ -224,8 +243,8 @@ void show_result_info (const int result, const std::string sensor)
         ROS_ERROR_STREAM( "MSG " << sensor << " Not processed, first imu msg not received  ");
     else if (result == 0)
         ROS_WARN_STREAM( "MSG " << sensor << " too old to process ");
-    else if (result == 1)
-        ROS_INFO_STREAM( "MSG " << sensor << " success ");
+    // else if (result == 1)
+        // ROS_INFO_STREAM( "MSG " << sensor << " success ");
 }
 
 
@@ -267,7 +286,7 @@ void EskfOdomAlgNode::mainNodeThread(void)
 
 void EskfOdomAlgNode::ThreadFunc(void)
 {
-    ros::Rate rate(20);
+    ros::Rate rate(60);
     while(RunThread_)
     {
         // DEBUG: Frequency check
@@ -284,16 +303,17 @@ void EskfOdomAlgNode::ThreadFunc(void)
 
         Eigen::VectorXf state(33,1);
         Eigen::VectorXf vcovP(19,1);  
+        Eigen::VectorXf dxstate(18,1);  
         eskf_odometry_ros::vP ros_vcovP;
         eskf_odometry_ros::xstate ros_state;
-        eskf_odometry_ros::xstate dxstate;
+        eskf_odometry_ros::dxstate ros_dxstate;
 
         Eigen::Vector3f ang_vel;
         bool step_done = false;
 
         this->alg_.lock();
         // step_done = this->alg_.update(state,ang_vel,is_flying,this->range_dist_(0));
-        this->alg_.update(state, vcovP);
+        this->alg_.update(state, vcovP, dxstate);
         ros_state.p.x = state(0);
         ros_state.p.y = state(1);
         ros_state.p.z = state(2);
@@ -334,6 +354,25 @@ void EskfOdomAlgNode::ThreadFunc(void)
         ros_vcovP.g.y = vcovP(17);
         ros_vcovP.g.z = vcovP(18);
         
+        ros_dxstate.dp.x = dxstate(0);
+        ros_dxstate.dp.y = dxstate(1);
+        ros_dxstate.dp.z = dxstate(2);
+        ros_dxstate.dv.x = dxstate(3);
+        ros_dxstate.dv.y = dxstate(4);
+        ros_dxstate.dv.z = dxstate(5);
+        ros_dxstate.dtheta.x = dxstate(6);
+        ros_dxstate.dtheta.y = dxstate(7);
+        ros_dxstate.dtheta.z = dxstate(8);
+        ros_dxstate.dab.x = dxstate(9);
+        ros_dxstate.dab.y = dxstate(10);
+        ros_dxstate.dab.z = dxstate(11);
+        ros_dxstate.dwb.x = dxstate(12);
+        ros_dxstate.dwb.y = dxstate(13);
+        ros_dxstate.dwb.z = dxstate(14);
+        ros_dxstate.dg.x = dxstate(15);
+        ros_dxstate.dg.y = dxstate(16);
+        ros_dxstate.dg.z = dxstate(17);
+        
 
         this->alg_.unlock();
         ros::spinOnce();
@@ -341,6 +380,7 @@ void EskfOdomAlgNode::ThreadFunc(void)
 
         this->state_publisher_.publish(ros_state);
         this->cov_publisher_.publish(ros_vcovP);
+        this->dxstate_publisher_.publish(ros_dxstate);
 
 
 
@@ -348,34 +388,34 @@ void EskfOdomAlgNode::ThreadFunc(void)
 
         // if (step_done)
         // {
-        //     // Broadcast state with TF
-        //     static tf::TransformBroadcaster br;
-        //     tf::Transform transform;
-        //     transform.setOrigin(tf::Vector3(state(0), state(1), state(2)));
-        //     tf::Quaternion q(state(7), state(8), state(9), state(6)); //TF:[qx,qy,qz,qw] Filter:[qw,qx,qy,qz]
-        //     transform.setRotation(q);
-        //     br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), this->odom_out_frame_id_, this->robot_frame_id_));
+            // Broadcast state with TF
+            static tf::TransformBroadcaster br;
+            tf::Transform transform;
+            transform.setOrigin(tf::Vector3(state(0), state(1), state(2)));
+            tf::Quaternion q(state(7), state(8), state(9), state(6)); //TF:[qx,qy,qz,qw] Filter:[qw,qx,qy,qz]
+            transform.setRotation(q);
+            br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), this->odom_out_frame_id_, this->robot_frame_id_));
 
-        //     // Publish Odometry
-        //     this->odom_msg_.header.seq = this->seq_;
-        //     this->odom_msg_.header.stamp = ros::Time::now();
-        //     this->odom_msg_.header.frame_id = this->odom_out_frame_id_;
-        //     this->odom_msg_.child_frame_id = this->robot_frame_id_;
-        //     this->odom_msg_.pose.pose.position.x = state(0);
-        //     this->odom_msg_.pose.pose.position.y = state(1);
-        //     this->odom_msg_.pose.pose.position.z = state(2);
-        //     this->odom_msg_.pose.pose.orientation.w = state(6);
-        //     this->odom_msg_.pose.pose.orientation.x = state(7);
-        //     this->odom_msg_.pose.pose.orientation.y = state(8);
-        //     this->odom_msg_.pose.pose.orientation.z = state(9);
-        //     this->odom_msg_.twist.twist.linear.x = state(3);
-        //     this->odom_msg_.twist.twist.linear.y = state(4);
-        //     this->odom_msg_.twist.twist.linear.z = state(5);
-        //     this->odom_msg_.twist.twist.angular.x = ang_vel(0);
-        //     this->odom_msg_.twist.twist.angular.y = ang_vel(1);
-        //     this->odom_msg_.twist.twist.angular.z = ang_vel(2);
-        //     this->odom_publisher_.publish(this->odom_msg_);
-        //     ++this->seq_;
+            // Publish Odometry
+            this->odom_msg_.header.seq = this->seq_;
+            this->odom_msg_.header.stamp = ros::Time::now();
+            this->odom_msg_.header.frame_id = this->odom_out_frame_id_;
+            this->odom_msg_.child_frame_id = this->robot_frame_id_;
+            this->odom_msg_.pose.pose.position.x = state(0);
+            this->odom_msg_.pose.pose.position.y = state(1);
+            this->odom_msg_.pose.pose.position.z = state(2);
+            this->odom_msg_.pose.pose.orientation.w = state(6);
+            this->odom_msg_.pose.pose.orientation.x = state(7);
+            this->odom_msg_.pose.pose.orientation.y = state(8);
+            this->odom_msg_.pose.pose.orientation.z = state(9);
+            this->odom_msg_.twist.twist.linear.x = state(3);
+            this->odom_msg_.twist.twist.linear.y = state(4);
+            this->odom_msg_.twist.twist.linear.z = state(5);
+            this->odom_msg_.twist.twist.angular.x = ang_vel(0);
+            this->odom_msg_.twist.twist.angular.y = ang_vel(1);
+            this->odom_msg_.twist.twist.angular.z = ang_vel(2);
+            this->odom_publisher_.publish(this->odom_msg_);
+            ++this->seq_;
         // }
     }
 }
@@ -383,38 +423,7 @@ void EskfOdomAlgNode::ThreadFunc(void)
 /*  [subscriber callbacks] */
 void EskfOdomAlgNode::position_in_callback(const geometry_msgs::PointStamped::ConstPtr& msg)
 {
-    // ROS_DEBUG("EskfOdomAlgNode::position_in_callback: New Message Received");
 
-    // this->position_in_mutex_enter();
-
-    // ros::Time stamp = msg->header.stamp;
-    // double t = stamp.toSec();
-    // if (this->is_first_position_)
-    // {
-    //     this->t_ini_position_ = t;
-    //     this->is_first_position_ = false;
-    // }
-
-    // this->position_in_mutex_exit();
-
-    // // get minimum height when landed to avoid -Z outliers (e.g. due to GPS wrong heights)
-    // this->alg_.lock();
-    // double range_min = this->alg_.get_range_params().range_min;
-    // this->alg_.unlock();
-    // if (!std::isfinite(range_min)) // Only set if known
-    //     range_min = 0.0;
-    
-    // Eigen::Vector3f position;
-    // position(0) = msg->point.x;
-    // position(1) = msg->point.y;
-    // if (this->flying_ && msg->point.z > range_min)
-    //     position(2) = msg->point.z;
-    // else
-    //     position(2) = this->odom_msg_.pose.pose.position.z; // In case of not flying, update only x,y (avoiding -z and jumps)
-
-    // this->alg_.lock();
-    // this->alg_.set_position_reading(static_cast<float>(t-this->t_ini_position_), position); // Set values into filter object
-    // this->alg_.unlock();
 }
 
 void EskfOdomAlgNode::position_in_mutex_enter(void)
@@ -428,6 +437,7 @@ void EskfOdomAlgNode::position_in_mutex_exit(void)
 }
 
 void EskfOdomAlgNode::odom_callback(const nav_msgs::Odometry::ConstPtr& msg)
+// void EskfOdomAlgNode::odom_callback(const sensor_msgs::NavSatFix::ConstPtr& msg)
 {
     ROS_INFO("EskfOdomAlgNode::odom_callback: New Message Received");
 
@@ -452,116 +462,15 @@ void EskfOdomAlgNode::odom_callback(const nav_msgs::Odometry::ConstPtr& msg)
     // if (!std::isfinite(range_min)) // Only set if known
     //     range_min = 0.0;
 
+    // Eigen::VectorXf pose(6);    // Position x,y,z
     Eigen::Vector3f pose;    // Position x,y,z
     pose(0) = msg->pose.pose.position.x;
     pose(1) = msg->pose.pose.position.y;
     pose(2) = msg->pose.pose.position.z;
-    // if (this->flying_ && msg->pose.pose.position.z > range_min)
-    //     pose(2) = msg->pose.pose.position.z;
-    // else
-    //     pose(2) = this->odom_msg_.pose.pose.position.z; // In case of not flying, update only x,y (avoiding -z and jumps)
 
-    // double roll, pitch, yaw;
-    // tf::Quaternion qt;
-    // tf::quaternionMsgToTF(msg->pose.pose.orientation,qt);
-    // tf::Matrix3x3(qt).getRPY(roll,pitch,yaw);
-    // pose.segment(3,3) << roll,pitch,yaw;
-
-    // Transform to NWU frame (required by low level library)
-    // pose.segment(0,3) = nwu_q_odomin_ * pose.segment(0,3);
-    // pose.segment(3,3) = nwu_q_odomin_ * pose.segment(3,3);
-
-    Eigen::Matrix3f R_position; 
-    
-    R_position << msg->pose.covariance[0], msg->pose.covariance[1], msg->pose.covariance[2],
-         msg->pose.covariance[6], msg->pose.covariance[7], msg->pose.covariance[8],
-         msg->pose.covariance[12], msg->pose.covariance[13], msg->pose.covariance[14];
-    ROS_INFO_STREAM("R_position " << R_position);
-    this->alg_.lock();
-    int result;
-    result = this->alg_.set_position_reading(static_cast<float>(t-this->t_ini_imu_), pose, R_position); // Use diff dt    
-    show_result_info(result, "---POSE");
-    this->alg_.unlock();    
-
-
-
-    Eigen::Vector3f magnetic_field_msg;    
-    Eigen::Vector3f magnetic_field_vector{1,1,1};    
-    
-    // Get orientation msg
-    Eigen::Quaternionf qt{msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z};
-    Eigen::Matrix3f R_temp;
-    R_temp = qt.matrix();
-
-    // Define random generator with Gaussian distribution
-    const double mean = 0.0;
-    const double stddev = 0.5;
-    std::default_random_engine generator;
-    std::normal_distribution<double> dist(mean, stddev);
-    Eigen::Vector3f noise{dist(generator), dist(generator), dist(generator)};     
-
-    // Magnetic field msg 
-    magnetic_field_msg = R_temp.transpose() * magnetic_field_vector + noise; 
-
-    ROS_INFO_STREAM("magnetic_field_msg " << magnetic_field_msg);
-       
-    Eigen::Matrix3f Rmag;     
-    Rmag << msg->pose.covariance[21], msg->pose.covariance[22], msg->pose.covariance[23],
-            msg->pose.covariance[27], msg->pose.covariance[28], msg->pose.covariance[29],
-            msg->pose.covariance[33], msg->pose.covariance[34], msg->pose.covariance[35];
-
-    sensor_msgs::MagneticField mag_msg;
-    mag_msg.magnetic_field.x = magnetic_field_msg[0];
-    mag_msg.magnetic_field.y = magnetic_field_msg[1];
-    mag_msg.magnetic_field.z = magnetic_field_msg[2];
-    mag_msg.magnetic_field_covariance[0] = 0.05;
-    mag_msg.magnetic_field_covariance[4] = 0.02;
-    mag_msg.magnetic_field_covariance[8] = 0.03;
-    magnetic_publisher_.publish(mag_msg);            
-
-    this->alg_.lock();
-    result = this->alg_.set_magnetometer_reading(static_cast<float>(t-this->t_ini_imu_), magnetic_field_msg, Rmag); // Use diff dt    
-    show_result_info(result, "---MAGNETIC");
-    this->alg_.unlock();  
-
-}
-
-void EskfOdomAlgNode::odom_mutex_enter(void)
-{
-    pthread_mutex_lock(&this->odom_mutex_);
-}
-
-void EskfOdomAlgNode::odom_mutex_exit(void)
-{
-    pthread_mutex_unlock(&this->odom_mutex_);
-}
-
-void EskfOdomAlgNode::odom2_callback(const nav_msgs::Odometry::ConstPtr& msg)
-{
-    // ROS_DEBUG("EskfOdomAlgNode::odom2_callback: New Message Received");
-
-    // this->odom2_mutex_enter();
-
-    // ros::Time stamp = msg->header.stamp;
-    // double t = stamp.toSec();
-    // if (this->is_first_odom2_)
-    // {
-    //     this->t_ini_odom2_ = t;
-    //     this->is_first_odom2_ = false;
-    // }
-
-    // this->odom2_mutex_exit();
-
-    // // get minimum height when landed to avoid -Z outliers (e.g. due to GPS wrong heights)
-    // this->alg_.lock();
-    // double range_min = this->alg_.get_range_params().range_min;
-    // this->alg_.unlock();
-    // if (!std::isfinite(range_min)) // Only set if known
-    //     range_min = 0.0;
-
-    // Eigen::VectorXf pose(6);
-    // pose(0) = msg->pose.pose.position.x;
-    // pose(1) = msg->pose.pose.position.y;
+    // pose(0) = msg->longitude;
+    // pose(1) = msg->latitude;
+    // pose(2) = msg->altitude;
     // if (this->flying_ && msg->pose.pose.position.z > range_min)
     //     pose(2) = msg->pose.pose.position.z;
     // else
@@ -577,50 +486,152 @@ void EskfOdomAlgNode::odom2_callback(const nav_msgs::Odometry::ConstPtr& msg)
     // pose.segment(0,3) = nwu_q_odomin_ * pose.segment(0,3);
     // pose.segment(3,3) = nwu_q_odomin_ * pose.segment(3,3);
 
+    // Eigen::Matrix3f R_position; 
+    
+    // R_position << msg->pose.covariance[0], msg->pose.covariance[1], msg->pose.covariance[2],
+    //             msg->pose.covariance[6], msg->pose.covariance[7], msg->pose.covariance[8],
+    //             msg->pose.covariance[12], msg->pose.covariance[13], msg->pose.covariance[14];
+
+    // R_position << msg->position_covariance[0], msg->position_covariance[1], msg->position_covariance[2],
+    //             msg->position_covariance[6], msg->position_covariance[7], msg->position_covariance[8],
+    //             msg->position_covariance[12], msg->position_covariance[13], msg->position_covariance[14];                
+
+    // Eigen::MatrixXf R_pose(6,6);
+    // R_pose << msg->pose.covariance[0], msg->pose.covariance[1], msg->pose.covariance[2], msg->pose.covariance[3], msg->pose.covariance[4], msg->pose.covariance[5],
+    //         msg->pose.covariance[6], msg->pose.covariance[7], msg->pose.covariance[8], msg->pose.covariance[9], msg->pose.covariance[10], msg->pose.covariance[11],
+    //         msg->pose.covariance[12], msg->pose.covariance[13], msg->pose.covariance[14], msg->pose.covariance[15], msg->pose.covariance[16], msg->pose.covariance[17],
+    //         msg->pose.covariance[18], msg->pose.covariance[19], msg->pose.covariance[20], msg->pose.covariance[21], msg->pose.covariance[22], msg->pose.covariance[23],
+    //         msg->pose.covariance[24], msg->pose.covariance[25], msg->pose.covariance[26], msg->pose.covariance[27], msg->pose.covariance[28], msg->pose.covariance[29],
+    //         msg->pose.covariance[30], msg->pose.covariance[31], msg->pose.covariance[32], msg->pose.covariance[33], msg->pose.covariance[34], msg->pose.covariance[35];
+            
+    // ROS_INFO_STREAM("R_position " << R_position);
+    this->alg_.lock();
+    int result;
+    
+    // Prueba sigma fijo
+    float sigma_mocap_pos = 0.3; // [m]
+    result = this->alg_.set_position_reading(static_cast<float>(t-this->t_ini_imu_), pose, SQ(sigma_mocap_pos)*Eigen::Matrix3f::Identity());    
+    // result = this->alg_.set_position_reading(static_cast<float>(t-this->t_ini_imu_), pose, R_pose); // Use diff dt    
+    // show_result_info(result, "---POSE");
+    this->alg_.unlock();    
+
+
+
+
+
+    ////// ----------------------------------------TEST Create Magnetic Message from Orientation ------------------------
+    // Eigen::Vector3f magnetic_field_msg;    
+    // // ref_mag_north="0.000021493"
+    // // ref_mag_east="0.000000815"
+    // // ref_mag_down="0.000042795"
+    // Eigen::Vector3f magnetic_field_vector{0.000000815, 0.000021493,-0.000042795};    
+    
+    // // Get orientation msg
+    // Eigen::Quaternionf qt{msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z};
+    // ROS_INFO_STREAM("qt " << qt.w() );
+    // Eigen::Matrix3f R_temp;
+    // R_temp = qt.matrix();
+
+    // // Define random generator with Gaussian distribution
+    // // const double mean = 0.0;
+    // // const double stddev = 0.5;
+    // // std::default_random_engine generator;
+    // // std::normal_distribution<double> dist(mean, stddev);
+    // // Eigen::Vector3f noise{dist(generator), dist(generator), dist(generator)};     
+
+    // // Magnetic field msg 
+    // // magnetic_field_msg = R_temp.transpose() * magnetic_field_vector + noise; 
+    // magnetic_field_msg = R_temp.transpose() * magnetic_field_vector; 
+      
+    // Eigen::Matrix3f Rmag;     
+    // Rmag << msg->pose.covariance[21], msg->pose.covariance[22], msg->pose.covariance[23],
+    //         msg->pose.covariance[27], msg->pose.covariance[28], msg->pose.covariance[29],
+    //         msg->pose.covariance[33], msg->pose.covariance[34], msg->pose.covariance[35];
+
+    // sensor_msgs::MagneticField mag_msg;
+
+    // mag_msg.magnetic_field.x = magnetic_field_msg[0];
+    // mag_msg.magnetic_field.y = magnetic_field_msg[1];
+    // mag_msg.magnetic_field.z = magnetic_field_msg[2];
+    // mag_msg.magnetic_field_covariance[0] = 0.000000080;
+    // mag_msg.magnetic_field_covariance[4] = 0.000000080;
+    // mag_msg.magnetic_field_covariance[8] = 0.000000080;
+    // magnetic_publisher_.publish(mag_msg);            
+
     // this->alg_.lock();
-    // this->alg_.set_pose2_reading(static_cast<float>(t-this->t_ini_odom_), pose); // Set values into filter object
-    // this->alg_.unlock();
+    // result = this->alg_.set_magnetometer_reading(static_cast<float>(t-this->t_ini_imu_), magnetic_field_msg, Rmag, nwu_q_mag_); // Use diff dt    
+    // show_result_info(result, "---MAGNETIC");
+    // this->alg_.unlock();  
+
 }
 
-void EskfOdomAlgNode::odom2_mutex_enter(void)
+void EskfOdomAlgNode::odom_mutex_enter(void)
 {
-    pthread_mutex_lock(&this->odom2_mutex_);
+    pthread_mutex_lock(&this->odom_mutex_);
 }
 
-void EskfOdomAlgNode::odom2_mutex_exit(void)
+void EskfOdomAlgNode::odom_mutex_exit(void)
 {
-    pthread_mutex_unlock(&this->odom2_mutex_);
+    pthread_mutex_unlock(&this->odom_mutex_);
+}
+
+void EskfOdomAlgNode::magnetometer_callback(const sensor_msgs::MagneticField::ConstPtr& msg)
+{
+    ROS_INFO("EskfOdomAlgNode::magnetometer_callback: New Message Received");
+
+    this->magnetometer_mutex_enter();
+
+    ros::Time stamp = msg->header.stamp;
+    // double t = stamp.toSec();
+    ros::Time begin  = ros::Time::now();  
+    double t = begin.toSec(); 
+    if (this->is_first_magnetometer_)
+    {
+        this->t_ini_magnetometer_ = t;        
+        this->is_first_magnetometer_ = false;
+    }
+
+    // ROS_INFO_STREAM("magnetic_field_msg " << msg);
+       
+    // Magnetic field msg / NED
+    Eigen::Vector3f magnetic_field_msg;    
+    magnetic_field_msg[0] = msg->magnetic_field.x;
+    magnetic_field_msg[1] = msg->magnetic_field.y;
+    magnetic_field_msg[2] = msg->magnetic_field.z;
+    Eigen::Matrix3f Rmag;     
+
+    Rmag << 0.0000113, msg->magnetic_field_covariance[1], msg->magnetic_field_covariance[2],
+            msg->magnetic_field_covariance[3], 0.0000113, msg->magnetic_field_covariance[5],
+            msg->magnetic_field_covariance[6], msg->magnetic_field_covariance[7], 0.0000113;
+
+    // Rmag << msg->magnetic_field_covariance[0], msg->magnetic_field_covariance[1], msg->magnetic_field_covariance[2],
+    //         msg->magnetic_field_covariance[3], msg->magnetic_field_covariance[4], msg->magnetic_field_covariance[5],
+    //         msg->magnetic_field_covariance[6], msg->magnetic_field_covariance[7], msg->magnetic_field_covariance[8];
+
+    this->magnetometer_mutex_exit();        
+
+    float sigma_mocap_mag = 0.00003; // [nT]
+    this->alg_.lock();
+    int result;
+    result = this->alg_.set_magnetometer_reading(static_cast<float>(t-this->t_ini_imu_), magnetic_field_msg, SQ(sigma_mocap_mag)*Eigen::Matrix3f::Identity(), nwu_q_mag_); // Use diff dt    
+    show_result_info(result, "---MAGNETIC");
+    this->alg_.unlock();  
+
+}
+
+void EskfOdomAlgNode::magnetometer_mutex_enter(void)
+{
+    pthread_mutex_lock(&this->magnetometer_mutex_);
+}
+
+void EskfOdomAlgNode::magnetometer_mutex_exit(void)
+{
+    pthread_mutex_unlock(&this->magnetometer_mutex_);
 }
 
 void EskfOdomAlgNode::range_callback(const sensor_msgs::Range::ConstPtr& msg)
 {
-    // ROS_DEBUG("EskfOdomAlgNode::range_callback: New Message Received");
 
-    // this->range_mutex_enter();
-    // ros::Time stamp = msg->header.stamp;
-    // double t = stamp.toSec();
-    // if (this->is_first_range_)
-    // {
-    //     this->t_ini_range_ = t;
-    //     this->is_first_range_ = false;
-    // }
-    // this->range_dist_(0) = msg->range;
-
-    // // // OPTIONAL: Set the range limits dynamically
-    // // Sensor::range_params range_params = this->alg_.get_range_params();
-    // // if (std::isfinite(msg->min_range)) // Only set if known
-    // //   range_params.range_min = msg->min_range;
-    // // if (std::isfinite(msg->max_range)) // Only set if known
-    // //   range_params.range_min = msg->max_range;
-    // // this->alg_.lock();
-    // // this->alg_.set_range_params(range_params);
-    // // this->alg_.unlock();
-
-    // this->range_mutex_exit();
-
-    // this->alg_.lock();
-    // this->alg_.set_range_reading(static_cast<float>(t-this->t_ini_range_), this->range_dist_); // Set values into filter object
-    // this->alg_.unlock();
 }
 
 void EskfOdomAlgNode::range_mutex_enter(void)
@@ -638,7 +649,7 @@ void EskfOdomAlgNode::imu_callback(const sensor_msgs::Imu::ConstPtr& msg)
     /// Guardar el tiempo de la última medida y de su anterior
     /// w ultima a ultima t medida anterior 
 
-    ROS_DEBUG("EskfOdomAlgNode::imu_callback: New Message Received");
+    ROS_INFO("EskfOdomAlgNode::imu_callback: New Message Received");
 
     this->imu_mutex_enter();
     ros::Time stamp = msg->header.stamp;
@@ -650,19 +661,15 @@ void EskfOdomAlgNode::imu_callback(const sensor_msgs::Imu::ConstPtr& msg)
     double t = begin.toSec(); 
 
     if (this->is_first_imu_)
-    {
-        this->t_prev_imu_ = t;  
+    {        
         this->t_ini_imu_ = t;
         this->is_first_imu_ = false;
     }
     this->imu_mutex_exit();
 
-    set_imu_reading(msg, static_cast<float>(t-this->t_ini_imu_));        // t from 0
-    // set_imu_reading(msg, static_cast<float>(t - this->t_prev_imu_));        // Use diff dt
+    set_imu_reading(msg, static_cast<float>(t-this->t_ini_imu_));        // t from 0    
     // set_imu_reading(msg, static_cast<float>(t));        // Use diff dt
 
-    // // Update Prev INI sensor time.
-    // this->t_prev_imu_ = t;
 }
 void EskfOdomAlgNode::imu_mutex_enter(void)
 {
@@ -673,9 +680,93 @@ void EskfOdomAlgNode::imu_mutex_exit(void)
     pthread_mutex_unlock(&this->imu_mutex_);
 }
 
+void EskfOdomAlgNode::imu2_callback(const geometry_msgs::QuaternionStamped::ConstPtr& msg)
+{
+    /// Guardar el tiempo de la última medida y de su anterior
+    /// w ultima a ultima t medida anterior 
+
+    ROS_INFO("EskfOdomAlgNode::orientation_callback: New Message Received");
+
+    this->imu2_mutex_enter();
+    ros::Time stamp = msg->header.stamp;
+
+    // TODO select rostime from msg or from node time 
+    // double t = stamp.toSec();
+    // time now
+    ros::Time begin  = ros::Time::now();  
+    double t = begin.toSec(); 
+
+
+    // float ax, ay, az, wx, wy, wz;
+    // ax = msg->linear_acceleration.x;
+    // ay = msg->linear_acceleration.y;
+    // az = msg->linear_acceleration.z;
+    // wx = msg->angular_velocity.x;
+    // wy = msg->angular_velocity.y;
+    // wz = msg->angular_velocity.z;
+
+    // Eigen::Matrix3f Ra, Rw; 
+    // Ra << msg->linear_acceleration_covariance[0], msg->linear_acceleration_covariance[1], msg->linear_acceleration_covariance[2],
+    //       msg->linear_acceleration_covariance[3], msg->linear_acceleration_covariance[4], msg->linear_acceleration_covariance[5],
+    //       msg->linear_acceleration_covariance[6], msg->linear_acceleration_covariance[7], msg->linear_acceleration_covariance[8]; 
+      
+    // Rw << msg->angular_velocity_covariance[0], msg->angular_velocity_covariance[1], msg->angular_velocity_covariance[2],
+    //       msg->angular_velocity_covariance[3], msg->angular_velocity_covariance[4], msg->angular_velocity_covariance[5],
+    //       msg->angular_velocity_covariance[6], msg->angular_velocity_covariance[7], msg->angular_velocity_covariance[8];
+
+    
+
+    // Eigen::Vector3f a;
+    // a << ax, ay, az;
+    // Eigen::Vector3f w;
+    // w << wx, wy, wz;
+    // Eigen::Quaternionf q(msg->orientation.w,msg->orientation.x,msg->orientation.y,msg->orientation.z);
+
+    // Eigen::Matrix3f Rq;
+    // Rq << msg->orientation_covariance[0], msg->orientation_covariance[1], msg->orientation_covariance[2],
+    //       msg->orientation_covariance[3], msg->orientation_covariance[4], msg->orientation_covariance[5],
+    //       msg->orientation_covariance[6], msg->orientation_covariance[7], msg->orientation_covariance[8];
+
+    this->imu2_mutex_exit();          
+
+    // this->alg_.lock();         
+
+    int result;
+    // result = this->alg_.set_imu2_reading(static_cast<float>(t-this->t_ini_imu_), a, w, q, Rw, Ra, Rq); // To low level propagate
+    // // Show console result
+    // show_result_info(result, "IMU2");
+
+    // this->alg_.unlock();
+
+
+    // Input orientation from imu topic
+    this->alg_.lock();
+    float qx = msg->quaternion.x;    
+    float qy = msg->quaternion.y;    
+    float qz = msg->quaternion.z;    
+    float qw = msg->quaternion.w;
+    Eigen::Quaternionf q(qw,qx,qy,qz);    
+    float sigma_mocap_rot = 0.003; // []
+    // sigma_mocap_rot = 0.03; // [rad]    // Theta cov r,p,y
+    result = this->alg_.set_orientation_reading(static_cast<float>(t-this->t_ini_imu_), q, SQ(sigma_mocap_rot)*Eigen::Matrix3f::Identity() , nwu_q_imu2_);
+    // // Show console result
+    show_result_info(result, "IMU2");
+    this->alg_.unlock();
+
+}
+
+void EskfOdomAlgNode::imu2_mutex_enter(void)
+{
+    pthread_mutex_lock(&this->imu2_mutex_);
+}
+void EskfOdomAlgNode::imu2_mutex_exit(void)
+{
+    pthread_mutex_unlock(&this->imu2_mutex_);
+}
+
 void EskfOdomAlgNode::set_imu_reading(const sensor_msgs::Imu::ConstPtr& msg, const float& t_msg)
 {
-    this->imu_mutex_enter();
+    this->imu_mutex_enter();    
     float ax, ay, az, wx, wy, wz;
     ax = msg->linear_acceleration.x;
     ay = msg->linear_acceleration.y;
@@ -683,63 +774,64 @@ void EskfOdomAlgNode::set_imu_reading(const sensor_msgs::Imu::ConstPtr& msg, con
     wx = msg->angular_velocity.x;
     wy = msg->angular_velocity.y;
     wz = msg->angular_velocity.z;
-    this->imu_mutex_exit();
 
-    // Guarda como globales para otros callbacks
-    // Funcion para guardar tiempo actual, tiempo anterior a y w
+    // FROM SENSOR
+    // Eigen::Matrix3f Ra, Rw; 
+    // Ra << msg->linear_acceleration_covariance[0], msg->linear_acceleration_covariance[1], msg->linear_acceleration_covariance[2],
+    //       msg->linear_acceleration_covariance[3], msg->linear_acceleration_covariance[4], msg->linear_acceleration_covariance[5],
+    //       msg->linear_acceleration_covariance[6], msg->linear_acceleration_covariance[7], msg->linear_acceleration_covariance[8]; 
+      
+    // Rw << msg->angular_velocity_covariance[0], msg->angular_velocity_covariance[1], msg->angular_velocity_covariance[2],
+    //       msg->angular_velocity_covariance[3], msg->angular_velocity_covariance[4], msg->angular_velocity_covariance[5],
+    //       msg->angular_velocity_covariance[6], msg->angular_velocity_covariance[7], msg->angular_velocity_covariance[8];
 
-
-    // Propagate
-    // Crear propagate or Update
+    Eigen::Matrix3f Ra, Rw; 
+    Ra << msg->linear_acceleration_covariance[0], msg->linear_acceleration_covariance[1], msg->linear_acceleration_covariance[2],
+          msg->linear_acceleration_covariance[3], msg->linear_acceleration_covariance[4], msg->linear_acceleration_covariance[5],
+          msg->linear_acceleration_covariance[6], msg->linear_acceleration_covariance[7], msg->linear_acceleration_covariance[8]; 
+      
+    Rw << msg->angular_velocity_covariance[0], msg->angular_velocity_covariance[1], msg->angular_velocity_covariance[2],
+          msg->angular_velocity_covariance[3], msg->angular_velocity_covariance[4], msg->angular_velocity_covariance[5],
+          msg->angular_velocity_covariance[6], msg->angular_velocity_covariance[7], msg->angular_velocity_covariance[8];
 
     Eigen::Vector3f a;
     a << ax, ay, az;
     Eigen::Vector3f w;
     w << wx, wy, wz;
-    Eigen::Quaternionf q(msg->orientation.w,msg->orientation.x,msg->orientation.y,msg->orientation.z);
+    // Eigen::Quaternionf q(msg->orientation.w, msg->orientation.x, msg->orientation.y, msg->orientation.z);
+
+    this->imu_mutex_exit();
 
     this->alg_.lock();
-
-    // // OPTIONAL: USE Actual IMU covariance. If first element is zero, then no covariance set.
-    // if (msg->angular_velocity_covariance[0]>0.0 && msg->linear_acceleration_covariance[0]>0.0)
-    // {
-    //   Sensor::imu_params imu = this->alg_.get_imu_params();
-    //   imu_w_std << msg->angular_velocity_covariance[0],msg->angular_velocity_covariance[4],msg->angular_velocity_covariance[8];
-    //   imu_a_std << msg->linear_acceleration_covariance[0],msg->linear_acceleration_covariance[4],msg->linear_acceleration_covariance[8];
-    //   this->alg_.set_imu_params(imu);
-    // }
-    // ROS_INFO_STREAM("t_msg " << t_msg);
-
-
-    Eigen::Matrix3f Rw; 
-    
-    // Rw << msg->angular_velocity_covariance[0], msg->angular_velocity_covariance[1], msg->angular_velocity_covariance[2],
-    //       msg->angular_velocity_covariance[3], msg->angular_velocity_covariance[4], msg->angular_velocity_covariance[5],
-    //       msg->angular_velocity_covariance[6], msg->angular_velocity_covariance[7], msg->angular_velocity_covariance[8];
-
-    Rw << 0.0005, msg->angular_velocity_covariance[1], msg->angular_velocity_covariance[2],
-          msg->angular_velocity_covariance[3], 0.0005, msg->angular_velocity_covariance[5],
-          msg->angular_velocity_covariance[6], msg->angular_velocity_covariance[7], 0.0005;          
-
-    Eigen::Matrix3f Ra; 
-    
-    // Ra << msg->linear_acceleration_covariance[0], msg->linear_acceleration_covariance[1], msg->linear_acceleration_covariance[2],
-    //       msg->linear_acceleration_covariance[3], msg->linear_acceleration_covariance[4], msg->linear_acceleration_covariance[5],
-    //       msg->linear_acceleration_covariance[6], msg->linear_acceleration_covariance[7], msg->linear_acceleration_covariance[8];  
-
-    Ra << 0.03, msg->linear_acceleration_covariance[1], msg->linear_acceleration_covariance[2],
-        msg->linear_acceleration_covariance[3], 0.03, msg->linear_acceleration_covariance[5],
-        msg->linear_acceleration_covariance[6], msg->linear_acceleration_covariance[7], 0.03;  
-
-    ROS_INFO_STREAM("Ra " << Ra);                 
-    ROS_INFO_STREAM("Rw " << Rw);            
+    // ROS_INFO_STREAM("Ra " << Ra);                 
+    // ROS_INFO_STREAM("Rw " << Rw);            
 
     int result;
-    result = this->alg_.set_imu_reading(t_msg, a, w, Rw, Ra, nwu_q_imu_); // To low level propagate
+    
+    // result = this->alg_.set_imu_reading(t_msg, a, w, Rw, Ra, nwu_q_imu_); // To low level propagate    
+    float sigma_accel = 0.0000124; // [m/s^2]  (value derived from Noise Spectral Density in datasheet)
+    float sigma_gyro = 0.0000276; // [rad/s] (value derived from Noise Spectral Density in datasheet)
+    float sigma_accel_drift = 0.001f*sigma_accel; // [m/s^2 sqrt(s)] (Educated guess, real value to be measured)
+    float sigma_gyro_drift = 0.001f*sigma_gyro; // [rad/s sqrt(s)] (Educated guess, real value to be measured)
+    result = this->alg_.set_imu_reading(t_msg, a, w, SQ(sigma_accel_drift)*Eigen::Matrix3f::Identity(), SQ(sigma_gyro_drift)*Eigen::Matrix3f::Identity(), nwu_q_imu_);     
     // Show console result
     show_result_info(result, "IMU");
 
     this->alg_.unlock();
+
+
+
+    // // Input orientation from imu topic
+    // this->alg_.lock();
+    // float qx = msg->orientation.x;    
+    // float qy = msg->orientation.y;    
+    // float qz = msg->orientation.z;    
+    // float qw = msg->orientation.w;
+    // Eigen::Quaternionf q(qw,qx,qy,qz);    
+    // sigma_mocap_rot = 0.03; // [rad]    // Theta cov r,p,y
+    // result = this->alg_.set_orientation_reading(t_msg, q, SQ(sigma_mocap_rot)*Eigen::Matrix3f::Identity() , nwu_q_imu_);
+
+    // this->alg_.unlock();
 }
 
 /*  [service callbacks] */

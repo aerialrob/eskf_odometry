@@ -2,23 +2,50 @@
 
 <launch>
 
-  <node pkg="rosbag" type="play" name="player" output="screen" 
-  args="--clock $(find eskf_odometry_ros)/bag/flight_test.bag"/>
+  	
+ 	<!-- <include file="$(find imu_filter_madgwick)/launch/imu_filter_madgwick.launch"/>  -->
+
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_tf" args="0 0 0 0 0 0 1 map odom 1000" />
+  <node pkg="tf" type="static_transform_publisher" name="odom_tf" args="0 0 0 0 0 0 1 odom base_link 1000" /> -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="fcu_tf" args="0 0 0 0 0 0 1 base_link px4 1000" /> -->
+
+
+  <!-- <node pkg="tf" type="static_transform_publisher" name="tf_imu_ned_enu"
+      args="0 0 0 0 0 0 1 imu_link base_link 1000" output="screen"/>    -->
+          
+  <node pkg="tf" type="static_transform_publisher" name="tf_imu_ned_enu"
+        args="0 0 0 -0.707 0.0 0.0 0.707 base_link px4 600" output="screen"/>    
+
+  <node pkg="tf" type="static_transform_publisher" name="tf_imu_enu"
+        args="0 0 0 0.0 0.0 0.0 1.0 base_link px4_enu 600" output="screen"/>    
+
+  <!-- Transforms NED IMU data pulished in frame imu_link_ned on topics /imu/data_ned and /imu/mag_ned to
+   ENU data in frame imu_link published on /imu/data_enu and /imu/mag_enu -->
+  <!-- <node pkg="imu_transformer" type="imu_transformer_node" name="imu_data_transformer" output="screen">
+    <remap from="imu_in" to="/px4/raw/imu"/>
+    <remap from="imu_out" to="imu_enu"/>
+    <param name="target_frame" value="imu_link"/>
+  </node> -->
+
+
 
   <arg name="params_file" default="$(find eskf_odometry_ros)/launch/params.yaml"/>
   
-  <arg name="imu_topic"      default="/dji_sdk/imu"/>
-  <arg name="range_topic"    default="/range"/>
-  <arg name="odom_in_topic"  default="/msg_adapter/odometry_selected"/>
-  <arg name="odom2_in_topic" default="/kinton/odom2_in"/>
+  <arg name="imu_topic"      default="/px4/raw/imu/data"/>
+  <arg name="imu2_topic"      default="/px4/orientation_"/>
+  <arg name="mag_topic"      default="/px4/raw/imu/mag"/>
+  <arg name="odom_in_topic"  default="/local_pose"/>
+  <!-- <arg name="odom_in_topic"  default="/odometry/gps"/> -->
   <arg name="odom_out_topic" default="/odometry_fused"/>  
   
-  <arg name="world_frame_id"    default="world"/>
-  <arg name="robot_frame_id"    default="matrice_base_link"/>
+  <arg name="world_frame_id"    default="wgs84"/>
+  <arg name="robot_frame_id"    default="base_link"/>
   <arg name="odom_out_frame_id" default="odom"/>
-  <arg name="odom_in_frame_id"  default="odom_gps"/>
+  <arg name="odom_in_frame_id"  default="odom"/>
   <arg name="odom2_in_frame_id" default="odom_gps"/>
-  <arg name="imu_frame_id"      default="matrice_base_link"/>  
+  <arg name="imu_frame_id"      default="px4"/>  
+  <arg name="imu2_frame_id"      default="px4_enu"/>  
+  <arg name="mag_frame_id"      default="px4"/>  
 
   <node name="eskf_odometry_ros" pkg="eskf_odometry_ros" type="eskf_odometry_ros" output="screen">
     <rosparam file="$(arg params_file)" command="load"/>
@@ -28,12 +55,14 @@
     <param name="odom_in_frame_id"  type="string" value="$(arg odom_in_frame_id)"/>
     <param name="odom2_in_frame_id" type="string" value="$(arg odom2_in_frame_id)"/>
     <param name="imu_frame_id"      type="string" value="$(arg imu_frame_id)"/>    
-    <remap from="~imu"      to="$(arg imu_topic)"/>
-    <remap from="~range"    to="$(arg range_topic)"/>
+    <param name="imu2_frame_id"      type="string" value="$(arg imu2_frame_id)"/>    
+    <param name="mag_frame_id"      type="string" value="$(arg mag_frame_id)"/>    
+    <remap from="~imu"              to="$(arg imu_topic)"/>
+    <remap from="~imu2"              to="$(arg imu2_topic)"/>
+    <remap from="~magnetometer"     to="$(arg mag_topic)"/>
     <remap from="~odom_in"  to="$(arg odom_in_topic)"/>
-    <remap from="~odom2_in" to="$(arg odom2_in_topic)"/>
     <remap from="~odom_out" to="$(arg odom_out_topic)"/>
-    <!--<remap from="~px4_of"   to="$(arg px4flow_topic)"/>-->
   </node>
+
 
 </launch>

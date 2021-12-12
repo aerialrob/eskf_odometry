@@ -144,6 +144,7 @@ class EskfOdomAlgorithm
          */
         void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu,const Sensor::pose_params& pose,const Sensor::pose_params& pose2,const Sensor::position_params& position,const Sensor::orientation_params& orientation,const Sensor::linvel_params& linvel);
         void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation);
+        void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation, const Sensor::gravity_params& gravity);
 
         /**
          * \brief Print initial parameters
@@ -206,6 +207,7 @@ class EskfOdomAlgorithm
          */
         int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& nwu_q_imu);        
         int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw, const Eigen::Quaternionf& nwu_q_imu);
+        int set_imu2_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf q, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw, const Eigen::MatrixXf& Rq);
         /**
          * \brief Get pose parameters
          *
@@ -248,7 +250,7 @@ class EskfOdomAlgorithm
          *   msg: Position reading = [p_x,p_y,p_z].
          *   R: Sensor covariance matrix 
          */        
-        int set_position_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R);
+        int set_position_reading(const float& t_msg, const Eigen::Vector3f& msg, const Eigen::Matrix3f& R);
 
         /**
          * \brief Set Position Readings
@@ -260,7 +262,7 @@ class EskfOdomAlgorithm
          *   msg: Magnetic field
          *   R: Sensor covariance matrix 
          */ 
-        int set_magnetometer_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R);
+        int set_magnetometer_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R, const Eigen::Quaternionf& nwu_q_mag);
 
         /**
          * \brief Set Pose 2 Readings
@@ -326,6 +328,7 @@ class EskfOdomAlgorithm
          *   val: Orientation reading = [r_x,r_y,r_z].
          */
         void set_orientation_reading(const float& t, const Eigen::Vector3f& val);
+        int set_orientation_reading(const float& t, const Eigen::Quaternionf& q_gb_meas, const Eigen::Matrix3f& theta_covariance, const Eigen::Quaternionf& nwu_q_imu);
 
         /**
          * \brief Get linear velocity parameters
@@ -446,7 +449,7 @@ class EskfOdomAlgorithm
          */
         bool update(Eigen::VectorXf& state, Eigen::Vector3f& ang_vel, const bool& flying, const float& gnd_dist);
 
-        void update(Eigen::VectorXf& state,Eigen::VectorXf& covPtrue);
+        void update(Eigen::VectorXf& state, Eigen::VectorXf& covPtrue, Eigen::VectorXf& dxstate);
 
         /**
          * \brief Destructor

@@ -1,21 +1,22 @@
-# Initial STD of Error-State values (filter)
-dp0_std: [0.0, 0.0, 0.05]
-dv0_std: [0.0, 0.0, 0.0]
-dtheta0_std: [0.05, 0.05, 0.0]
-dab0_std: [0.0196, 0.0196, 0.0196]
-dwb0_std: [0.0037, 0.0040, 0.0]
-dg0_std: [0.0, 0.0, 0.0]
-dpo0_std: [0.0, 0.0, 0.0]
-dthetao0_std: [0.0, 0.0, 0.0]
-dpr0_std: [0.0, 0.0, 0.0]
-dthetar0_std: [0.0, 0.0, 0.0]
+# Initial STD of Error-State values (filter)  P-Matrix
+dp0_std: [0.02, 0.02, 0.05] #[0;0;0.05]
+dv0_std: [0.002, 0.002, 0.002]  #[0;0;0]
+dtheta0_std: [0.0002, 0.0002, 0.0002]   #5e-2*[1;1;1]
+dab0_std: [0.0196, 0.0196, 0.0196]  #2e-3*9.8*[1;1;1]
+dwb0_std: [0.0037, 0.0040, 0.004]   #dwb0_est_std = [0.0037;0.0040;0]; % Filter: error (yaw non observable)
+dg0_std: [0.0005, 0.0005, 0.0005]
+
+
 frame: global # Frame r.t. orientation derivation is computed (global or local)
 
+#G STD values
+g_std: [0.0,0.0,0.0]
+
 #IMU STD values
-imu_a_std: [0.2,0.2,0.2]
-imu_w_std: [0.005,0.005,0.005]
-imu_ab_std: [0.0,0.0,0.0]
-imu_wb_std: [0.0,0.0,0.0]
+imu_a_std: [0.002,0.002,0.002]    #a_est_std_cont = 0.2; % Sensor: Acc. noise. (High value due to vibrations)
+imu_w_std: [0.005,0.005,0.005]    #w_est_std_cont = 0.005; % Sensor: Gyros. noise.   
+imu_ab_std: [0.002,0.002,0.002]     
+imu_wb_std: [0.004,0.004,0.004]     
 imu_method: discrete #Sets the data time nature (continous: simulated IMU or discrete: IMU sensor).
 
 # Position STD values
@@ -47,8 +48,10 @@ using_laser_range: true
 
 # Initial Nominal-State vector (p,v,q,ab,wb,g)
 # xstate0: [0.0,0.0,0.15,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-9.803057,0.0,0.0,-0.1,0.0,0.0,0.0,1.0,0.0,0.0,-0.1,1.0,0.0,0.0,0.0]
-xstate0: [0.15,0.15,0.15,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-9.803057]
+# xstate0: [0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-0.0005,-0.0026,-0.0004,0.0,0.0,-9.803057] #external_state 19  #wb0_est = [-0.0005;-0.0026;-0.0004]; % Filter: nominal
+xstate0: [0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-9.803057] #external_state 19  #wb0_est = [-0.0005;-0.0026;-0.0004]; % Filter: nominal
+
 
 # Initial Error-State vector (dp,dv,dtheta,dab,dwb,dg)
 # dxstate0: [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
-dxstate0: [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+dxstate0: [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0] #internal_state 18

@@ -9,7 +9,7 @@ find_package(catkin REQUIRED)
 find_package(catkin REQUIRED COMPONENTS iri_base_algorithm geometry_msgs std_msgs nav_msgs roscpp roslib px_comm sensor_msgs tf message_generation)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11)
+# add_compile_options(-std=c++11)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -75,6 +75,30 @@ catkin_package(
 #  DEPENDS eskf_odometry atools
 )
 
+
+#edit the following line to add the librarie's header files
+FIND_PATH(atools_INCLUDE_DIR
+	NAMES alg_fc.h cv_fc.h debug_fc.h math_fc.h rot_fc.h
+	PATHS /usr/include /usr/local/include /usr/local/include/atools)
+
+FIND_LIBRARY(atools_LIBRARY
+    NAMES atools
+    PATHS /usr/lib /usr/local/lib /usr/local/lib/atools) 
+
+IF (atools_INCLUDE_DIR AND atools_LIBRARY)
+   SET(atools_FOUND TRUE)
+ENDIF (atools_INCLUDE_DIR AND atools_LIBRARY)
+
+IF (atools_FOUND)
+   IF (NOT atools_FIND_QUIETLY)
+      MESSAGE(STATUS "Found atools: ${atools_LIBRARY}")
+   ENDIF (NOT atools_FIND_QUIETLY)
+ELSE (atools_FOUND)
+   IF (atools_FIND_REQUIRED)
+      MESSAGE(FATAL_ERROR "Could not find atools")
+   ENDIF (atools_FIND_REQUIRED)
+ENDIF (atools_FOUND)
+
 ###########
 ## Build ##
 ###########
@@ -86,10 +110,11 @@ catkin_package(
 include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS}  ${atools_INCLUDE_DIR})
 
 
-# MESSAGE(${eskf_odometry_INCLUDE_DIR})
+#MESSAGE(${eskf_odometry_INCLUDE_DIR})
 
 ## Declare a cpp library
 add_library(eskf_odometry src/eskf_odometry.cpp)
+target_link_libraries(eskf_odometry ${atools_LIBRARY})
 
 ## Declare a cpp executable
 add_executable(${PROJECT_NAME} src/eskf_odometry_ros_alg.cpp src/eskf_odometry_ros_alg_node.cpp)
@@ -98,7 +123,6 @@ add_executable(${PROJECT_NAME} src/eskf_odometry_ros_alg.cpp src/eskf_odometry_r
 # ******************************************************************** 
 #                   Add the libraries
 # ******************************************************************** 
-# target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${eskf_odometry_LIBRARY} ${atools_LIBRARY})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${atools_LIBRARY} eskf_odometry )
 
 # ******************************************************************** 
