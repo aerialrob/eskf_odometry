@@ -48,7 +48,6 @@
 #include <sensor_msgs/Range.h>
 #include <sensor_msgs/MagneticField.h>
 #include <nav_msgs/Odometry.h>
-#include <px_comm/OpticalFlow.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <geometry_msgs/QuaternionStamped.h>
@@ -66,8 +65,6 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
 
     private:
 
-
-
         ros::Time ros_t_init_; // Initial ROS time.
         ros::Time ros_t_last_; // ROS time in last loop step.
         ros::Time ros_t_curr_; // ROS time in current loop step.
@@ -75,8 +72,7 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         bool flying_; // Quadrotor landed or flying information.
         Eigen::VectorXf range_dist_; // Ground distance (m) obtained from PX4 optical flow pointing downward.
 
-        bool is_first_imu_;        // First IMU reading should not contribute to propagate nominal (integration requirements). Also used to get initial sensor time.
-        bool is_first_imu2_;        // First IMU reading should not contribute to propagate nominal (integration requirements). Also used to get initial sensor time.
+        bool is_first_imu_;        // First IMU reading should not contribute to propagate nominal (integration requirements). Also used to get initial sensor time.        
         bool is_first_range_;      // Used to get initial sensor time.              
         bool is_first_odom_;       // Used to get initial sensor time.        
         bool is_first_magnetometer_;       // Used to get initial sensor time.         
@@ -95,13 +91,12 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         std::string robot_frame_id_; // Robot frame ID.
         std::string odom_in_frame_id_; // Odometry IN frame ID.        
         std::string odom_out_frame_id_; // Odometry OUT frame ID.
-        std::string imu_frame_id_; // IMU frame ID.
-        std::string imu2_frame_id_; // IMU frame ID.
+        std::string imu_frame_id_; // IMU frame ID.        
         std::string mag_frame_id_; // Magnetometer frame ID.
         std::string flow_frame_id_; // Optical flow sensor frame ID.
-        Eigen::Quaternionf nwu_q_imu_; // Rotation of frame NWU w.r.t. current IMU frame (i.e. expressed in current IMU frame).
-        Eigen::Quaternionf nwu_q_imu2_; // Rotation of frame NWU w.r.t. current IMU frame (i.e. expressed in current IMU frame).
+        Eigen::Quaternionf nwu_q_imu_; // Rotation of frame NWU w.r.t. current IMU frame (i.e. expressed in current IMU frame).        
         Eigen::Quaternionf nwu_q_mag_; // Rotation of frame NWU w.r.t. current MAG frame (i.e. expressed in current MAG frame).
+        Eigen::Quaternionf nwu_q_pos_;
         Eigen::Quaternionf nwu_q_flow_; // Rotation of frame NWU w.r.t. current FLOW frame (i.e. expressed in current FLOW frame).
         Eigen::Quaternionf nwu_q_odomin_; // Rotation of frame NWU w.r.t. current ODOM frame (i.e. expressed in current FLOW frame).
         Eigen::Quaternionf nwu_q_odom2in_; // Rotation of frame NWU w.r.t. current ODOM 2 frame (i.e. expressed in current FLOW frame).
@@ -124,6 +119,7 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         ros::Publisher cov_publisher_;
         ros::Publisher dxstate_publisher_;
         ros::Publisher magnetic_publisher_;
+        ros::Publisher rpy_publisher_;
         nav_msgs::Odometry odom_msg_;
 
         // [subscriber attributes]
@@ -134,8 +130,7 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         void position_in_mutex_exit(void);
 
         ros::Subscriber odom_subscriber_;
-        void odom_callback(const nav_msgs::Odometry::ConstPtr& msg);
-        // void odom_callback(const sensor_msgs::NavSatFix::ConstPtr& msg);
+        void odom_callback(const nav_msgs::Odometry::ConstPtr& msg);        
         pthread_mutex_t odom_mutex_;
         void odom_mutex_enter(void);
         void odom_mutex_exit(void);
@@ -150,24 +145,13 @@ class EskfOdomAlgNode: public algorithm_base::IriBaseAlgorithm<EskfOdomAlgorithm
         void imu_callback(const sensor_msgs::Imu::ConstPtr& msg);
         pthread_mutex_t imu_mutex_;
         void imu_mutex_enter(void);
-        void imu_mutex_exit(void);
-        void set_imu_reading(const sensor_msgs::Imu::ConstPtr& msg,const float& t_msg);
-
-        ros::Subscriber imu2_subscriber_;
-        void imu2_callback(const geometry_msgs::QuaternionStamped::ConstPtr& msg);
-        pthread_mutex_t imu2_mutex_;
-        void imu2_mutex_enter(void);
-        void imu2_mutex_exit(void);
-        // void set2_imu_reading(const sensor_msgs::Imu::ConstPtr& msg,const float& t_msg);
-
+        void imu_mutex_exit(void);        
+        
         ros::Subscriber magnetometer_subscriber_;
         void magnetometer_callback(const sensor_msgs::MagneticField::ConstPtr& msg);
         pthread_mutex_t magnetometer_mutex_;
         void magnetometer_mutex_enter(void);
-        void magnetometer_mutex_exit(void);
-        // void set_magnetometer_reading(const sensor_msgs::MagneticField::ConstPtr& msg, const float& t_msg);
-
-        
+        void magnetometer_mutex_exit(void);       
 
         // [service attributes]
         ros::ServiceServer flying_server_;

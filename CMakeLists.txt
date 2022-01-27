@@ -6,7 +6,7 @@ find_package(catkin REQUIRED)
 # ******************************************************************** 
 #                 Add catkin additional components here
 # ******************************************************************** 
-find_package(catkin REQUIRED COMPONENTS iri_base_algorithm geometry_msgs std_msgs nav_msgs roscpp roslib px_comm sensor_msgs tf message_generation)
+find_package(catkin REQUIRED COMPONENTS iri_base_algorithm geometry_msgs std_msgs nav_msgs roscpp roslib sensor_msgs tf message_generation)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -133,7 +133,6 @@ add_dependencies(${PROJECT_NAME} geometry_msgs_generate_messages_cpp)
 add_dependencies(${PROJECT_NAME} std_msgs_generate_messages_cpp)
 add_dependencies(${PROJECT_NAME} nav_msgs_generate_messages_cpp)
 add_dependencies(${PROJECT_NAME} roscpp_generate_messages_cpp)
-add_dependencies(${PROJECT_NAME} px_comm_generate_messages_cpp)
 add_dependencies(${PROJECT_NAME} sensor_msgs_generate_messages_cpp)
 # ******************************************************************** 
 #               Add dynamic reconfigure dependencies 

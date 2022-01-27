@@ -31,11 +31,6 @@ struct params {
     Eigen::VectorXf dab0_std;
     Eigen::VectorXf dwb0_std;
     Eigen::VectorXf dg0_std;
-    Eigen::VectorXf dpo0_std;
-    Eigen::VectorXf dthetao0_std;
-    Eigen::VectorXf dpr0_std;
-    Eigen::VectorXf dthetar0_std;
-    char frame;
 } ;
 
 
@@ -43,44 +38,35 @@ class Sensor
 {
 public:
     struct imu_params {
-        Eigen::VectorXf std = Eigen::VectorXf(12);        
-        char met;
+        Eigen::VectorXf std = Eigen::VectorXf(12);                
     } ;
 
     struct position_params {
-        Eigen::VectorXf std_outsidebounds;        
-        Eigen::VectorXf std_insidebounds;      
         Eigen::VectorXf std;      
     } ;
 
-    struct orientation_params {
-        Eigen::VectorXf std_outsidebounds;        
-        Eigen::VectorXf std_insidebounds;      
+    struct orientation_params {   
         Eigen::VectorXf std;      
     } ;
 
-    struct linvel_params {
-        Eigen::VectorXf std_outsidebounds;        
-        Eigen::VectorXf std_insidebounds;      
+    struct linvel_params {  
         Eigen::VectorXf std;      
     } ;
 
     struct pose_params {
-        Eigen::VectorXf std_outsidebounds;        
-        Eigen::VectorXf std_insidebounds;      
         Eigen::VectorXf std;      
     } ;
 
-    struct range_params {
-        Eigen::VectorXf std_outsidebounds;        
-        Eigen::VectorXf std_insidebounds;      
+    struct range_params {  
         Eigen::VectorXf std;      
-        float range_min;
-        float range_max;
-        bool using_laser;
     } ;    
 
     struct gravity_params{
+        Eigen::VectorXf std;
+    } ;
+
+    struct magnetometer_params {
+        Eigen::Vector3f magnetic_field_vector;
         Eigen::VectorXf std;
     } ;
 };
@@ -122,6 +108,7 @@ public:
         Sensor::position_params position_;
         Sensor::orientation_params orientation_;
         Sensor::linvel_params linvel_;
+        Sensor::magnetometer_params mag_params_;
 
         float t_filter;
         float t_filter_prev;
@@ -153,7 +140,7 @@ public:
          * nominal-state vector and error-state vector. Wrapper of the low-level library
          *
          */
-        void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation, const Sensor::gravity_params& gravity);
+        void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation, const Sensor::gravity_params& gravity, const Sensor::magnetometer_params& magnetometer);
         
         /**
          * \brief Print initial parameters
@@ -224,17 +211,9 @@ public:
         Output            
             0 : Message too old to process
             1 : Message successfully processed              
-        */
-        int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w);     
-        int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw);
-        int set_imu2_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf q, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw, const Eigen::MatrixXf& Rq);
+        */        
+        int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw);  
         
-
-
-
-
-
-
         //----------------- Mean State Prediction and Covariance Prediction ESKF   error-state ---------------------
         void propagate_state();   
         
@@ -282,24 +261,6 @@ public:
         */
         // Eigen::MatrixXf cov_predict(const Eigen::VectorXf& P_old, const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt);
         void cov_predict(const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt, Eigen::MatrixXf& P_old);
-
-        /**
-         * \brief innovation     
-         *
-         * Computes innovation z and innovation's covariances matrix Z 
-         
-        Input:
-            - y:        Measurement.
-            - e:        Expectation.
-            - P_old:    Covariance matrix at time k-1.
-            - H:        Observation Jacobian.
-            - Q:        Observation covariance matrix.         
-        Outputs:
-            - dz:       Residual or innovation.
-            - Z:        Residual or innovation covariance matrix.
-        */
-        void innovation(const Eigen::VectorXf& y, const Eigen::VectorXf& e, const Eigen::MatrixXf& P_old, const Eigen::MatrixXf& H, const Eigen::MatrixXf& Q,
-                Eigen::VectorXf& dz, Eigen::MatrixXf& Z);
 
         /**
          * \brief correct_state     

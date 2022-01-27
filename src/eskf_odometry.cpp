@@ -45,43 +45,6 @@ Eigen::MatrixXf imu_trans_mat(const Eigen::VectorXf& xstate, const Eigen::Vector
                  M0,        M0,        M0,     M0,        MIdent,   M0,
                  M0,        M0,        M0,     M0,        M0,       MIdent;      
 
-
-    //     Eigen::MatrixXf F_dxstate(18,18);
-    //     Eigen::VectorXf q_ = xstate.segment(6,4);
-    //     Eigen::VectorXf ab = xstate.segment(10,3);
-    //     Eigen::VectorXf wb = xstate.segment(13,3);
-    //     Eigen::Quaternionf q{q_(0), q_(1), q_(2), q_(3)};
-    //     Eigen::Matrix3f R;
-    //     atools::q2R(q, R); 
-    // // case 'global'
-    //     Eigen::Matrix3f sk_Ra;
-    //     Eigen::Vector3f vsk_Ra = R*(a_s-ab);
-    //     atools::v2skew(vsk_Ra, sk_Ra);
-    //     Eigen::Matrix3f Vtheta = -sk_Ra;
-    //     Eigen::Matrix3f Thetatheta = Eigen::Matrix3f::Zero();
-    //     Eigen::Matrix3f Trunc_sigma0 = Eigen::Matrix3f::Identity();
-    //     Eigen::Matrix3f Thetaomega = -R;
-    //     Eigen::Matrix3f M0 = Eigen::Matrix3f::Zero();
-    //     Eigen::Matrix3f MIdent = Eigen::Matrix3f::Identity();
-
-    // // % Truncated n=3
-    //     Eigen::Matrix3f Trunc_sigma1 = Thetatheta;
-    //     Eigen::Matrix3f Trunc_sigma2 = 0.5*MIdent*(dt*dt);
-    //     Eigen::Matrix3f Trunc_sigma3 = (1/6)*MIdent*(dt*dt*dt);        
-
-    //     Eigen::Matrix3f Pv = MIdent;    
-    //     Eigen::Matrix3f Va = -R; 
-    //     Eigen::Matrix3f Vg = MIdent;            
-
-    // F_dxstate << MIdent,    Pv*dt,      Pv*Vtheta*Trunc_sigma2,     0.5*Pv*Va*(dt*dt),  Pv*Vtheta*Trunc_sigma3*Thetaomega,   0.5*Pv*Vg*(dt*dt),
-    //             M0,        MIdent,     Vtheta*Trunc_sigma1,        Va*dt,              Vtheta*Trunc_sigma2*Thetaomega,      Vg*dt,
-    //             M0,        M0,         Trunc_sigma0,               M0,                 Trunc_sigma1*Thetaomega,             M0,
-    //             M0,        M0,         M0,                         MIdent,             M0,                                  M0,
-    //             M0,        M0,         M0,                         M0,                 MIdent,                              M0,
-    //             M0,        M0,         M0,                         M0,                 M0,                                  MIdent;       
-
-
-
     return F_dxstate;
 }
 
@@ -94,7 +57,7 @@ eskf_odometry::eskf_odometry()
 
 }
 
-void eskf_odometry::set_init_params(const params& f_params, const Eigen::VectorXf& xtrue0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation, const Sensor::gravity_params& gravity)
+void eskf_odometry::set_init_params(const params& f_params, const Eigen::VectorXf& xtrue0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation, const Sensor::gravity_params& gravity, const Sensor::magnetometer_params& magnetometer)
 {
     std::cout << "Low level init " << std::endl;
     // Initial State
@@ -107,6 +70,7 @@ void eskf_odometry::set_init_params(const params& f_params, const Eigen::VectorX
     position_ = position;
     orientation_ = orientation; 
     gravity_params_ = gravity;  
+    mag_params_ =  magnetometer;
 
     // Std from param server
     // Ra_ = imu_params_.std.segment(0,3).asDiagonal();
@@ -154,129 +118,13 @@ void eskf_odometry::print_ini_params()
     std::cout << Rbw_ << std::endl;
     std::cout << "Rg_" << std::endl;
     std::cout << Rg_ << std::endl;
+    std::cout << "mag_params_vector" << std::endl;
+    std::cout << mag_params_.magnetic_field_vector[0] << std::endl;
+    std::cout << mag_params_.magnetic_field_vector[1] << std::endl;
+    std::cout << mag_params_.magnetic_field_vector[2] << std::endl;
     std::cout << std::endl << "********END Print level init*********" << std::endl;
 
     atools::print(Ptrue, blue);
-}
-
-
-
-void eskf_odometry::innovation(const Eigen::VectorXf& y, const Eigen::VectorXf& e, const Eigen::MatrixXf& P_old, const Eigen::MatrixXf& H, const Eigen::MatrixXf& Q,
-                Eigen::VectorXf& dz, Eigen::MatrixXf& Z)
-{
-
-    
-}
-
-int eskf_odometry::set_imu2_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf q_msg, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw, const Eigen::MatrixXf& Rq)
-{
-    // std::cout << std::endl << "IMU reading Low level " << std::endl;
-    // std::cout << std::fixed << std::setprecision(10) << t_msg << " t_msg IMU " << std::endl;
-    // Save imu a, w and cov values
-    a_ = a;
-    w_ = w;
-    // Ra_ = Ra;
-    // Rw_ = Rw;
-
-    if (!is_first_imu_received) // not first imu call, initialize t_filter
-    {
-        this->t_filter_prev = t_msg;
-        this->t_filter = t_msg;
-        is_first_imu_received = true;
-        // std::cout << std::fixed << std::setprecision(10) << t_filter_prev << " t_filter_prev " << std::endl;
-        // std::cout << std::fixed << std::setprecision(10) << t_filter << " t_filter " << std::endl;
-        std::cout << "FIRST IMU2 " << t_filter << std::endl;
-        return 1;        
-    }    
-    if (t_msg < t_filter )
-        return 0;
-
-    // Process sensor   
-    this->t_filter_prev = t_filter;
-    this->t_filter = t_msg;
-    // std::cout << std::fixed << std::setprecision(10) << t_filter_prev << " t_filter_prev " << std::endl;
-    // std::cout << std::fixed << std::setprecision(10) << t_filter << " t_filter " << std::endl;
-    
-    atools::print("-- IMU2 Propagate --", magenta); std::cout << std::endl;
-    propagate_state();    
-
-
-
-    set_orientation_reading(t_msg, q_msg, Rq);
-    
-
-    // if(!is_first_imu_received)   // not first imu call, return
-    //     return -1;
-    // if (t_msg < t_filter )  // msg time in the past, return
-    //     return 0;
-
-    // // Process sensor   
-    // t_filter_prev = t_filter;
-    // t_filter = t_msg;
-    // // std::cout << std::fixed << std::setprecision(10) << t_filter_prev << " t_filter_prev " << std::endl;
-    // // std::cout << std::fixed << std::setprecision(10) << t_filter << " t_filter " << std::endl;    
-    // atools::print("-- IMU2 Propagate --", yellow); std::cout << std::endl;
-    // propagate_state();
-
-    // // Evaluate mesurement function
-    // Eigen::Quaternionf q_ext{external_state[6], external_state[7], external_state[8], external_state[9]};
-    // // Eigen::Matrix3f Rot;
-    // // ref_mag_north="0.000021493"
-    // // ref_mag_east="0.000000815"
-    // // ref_mag_down="0.000042795"
-    // // Eigen::Vector3f magnetic_field_vector{0.000021493, 0.000000815, 0.000042795};   // TODO from param server
-    // // Eigen::MatrixXf JR_q;
-    // // atools::q2R(q_ext, Rot, JR_q);
-    // // Eigen::Vector3f y_hat = Rot.transpose() * magnetic_field_vector;
-    // Eigen::Vector3f y_hat;
-
-    // atools::q2e(q_ext, y_hat); 
-
-    // // Eigen::Quaternionf q;
-    // // Eigen::Vector3f e;
-    // // Eigen::MatrixXf E_q;
-    // // atools::q2e(q_ext, e, E_q);
-    
-    // // // Evaluate mesurement jacobian      
-    // Eigen::MatrixXf H(3,18);       
-    // // Evaluate mesurement jacobian               
-    // // Eigen::Matrix3f M_sk(3,3);
-    // // atools::v2skew(magnetic_field_vector, M_sk);
-
-    // H << Eigen::MatrixXf::Zero(3,6),  Eigen::MatrixXf::Ones(3,3), Eigen::MatrixXf::Zero(3,9);    
-    
-    // Eigen::Vector3f e_msg;
-    // atools::q2e(q_msg, e_msg);         
-    // atools::print("-- IMU2 Correct --", red); std::cout << std::endl;
-    // correct_state(e_msg, y_hat, H, Rq); 
-    // atools::print("-- IMU2 Reset --", red); std::cout << std::endl;    
-    // reset_state();
-
-    // return 1;
-
-
-
-    // Eigen::Quaternionf q_gb_nominal = getQuat();
-    // Eigen::Quaternionf q_bNominal_bMeas = q_gb_nominal.conjugate() * q_msg;    
-    // Eigen::Vector3f delta_theta = quatToRotVec(q_bNominal_bMeas);
-    // // Because of the above construction, H is a trivial observation of dtheta
-    // Eigen::Matrix<float, 3, dSTATE_SIZE> H;
-    // H.setZero();
-    // H.block<3, 3>(0, dTHETA_IDX) = Eigen::Matrix3f::Identity();
-
-    
-    // // atools::print("-- ORIENTATION Propagate --", cyan); std::cout << std::endl;
-    // // propagate_state();
-           
-    // // std::cout << "--            POS Correct --" << std::endl;
-    // atools::print("-- ORIENTATION Correct --", cyan); std::cout << std::endl;
-    // correct_state(delta_theta, H, Rq); 
-    // atools::print("-- ORIENTATION Reset --", cyan); std::cout << std::endl;    
-    // reset_state();
-
-    // return 1;
-
-
 }
 
 int eskf_odometry::set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw)
@@ -451,75 +299,6 @@ int eskf_odometry::set_position_reading(const float& t_msg, const Eigen::Vector3
     reset_state();
 
     return 1;
-
-
-    // if(!is_first_imu_received)   // not first imu call, return
-    //     return -1;
-    // if (t_msg < t_filter )  // msg time in the past, return
-    //     return 0;
-
-    // // Process sensor   
-    // t_filter_prev = t_filter;
-    // t_filter = t_msg;
-
-    // Eigen::Vector3f delta_pos;
-    // delta_pos = msg - getPos();
-
-    // // H is a trivial observation of purely the position
-    // Eigen::Matrix<float, 3, dSTATE_SIZE> H;
-    // H.setZero();
-    // H.block<3, 3>(0, dPOS_IDX) = Eigen::Matrix3f::Identity();;
-
-    // // Apply update
-    // atools::print("-- POS Correct --", yellow); std::cout << std::endl;
-    // update_3D(delta_pos, R, H); 
-    // atools::print("-- POS Reset --", yellow); std::cout << std::endl;
-    // reset_state();
-    // return 1;
-
-    // // -----------------------------------------
-    // //// USING POSITION AND ORIENTATION
-    // if(!is_first_imu_received)   // not first imu call, return
-    //     return -1;
-    // if (t_msg < t_filter )  // msg time in the past, return
-    //     return 0;
-
-    // // Process sensor   
-    // t_filter_prev = t_filter;
-    // t_filter = t_msg;
-    // // std::cout << std::fixed << std::setprecision(10) << t_filter_prev << " t_filter_prev " << std::endl;
-    // // std::cout << std::fixed << std::setprecision(10) << t_filter << " t_filter " << std::endl;
-    // // std::cout << "--            POS Propagate --" << std::endl;
-    // atools::print("-- POS Propagate --", yellow); std::cout << std::endl;
-    // propagate_state();
-    // // Evaluate mesurement function  
-    // atools::print("-- quaternion --", yellow); std::cout << std::endl;  
-    // Eigen::Quaternionf q(external_state[6], external_state[7], external_state[8], external_state[9]);
-    // atools::print(q, yellow); std::cout << std::endl;  
-    // Eigen::Vector3f euler;
-    // atools::q2e(q, euler);
-    // Eigen::VectorXf y_hat(6);
-    // y_hat << external_state.segment(0,3) , euler; //[p,theta]
-    // atools::print("-- y_hat --", yellow); std::cout << std::endl;
-    // atools::print(y_hat, yellow); std::cout << std::endl;
-    // // Evaluate mesurement jacobian      
-
-    //         // H_dxstate = [eye(3,3)    zeros(3,15);
-    //         //          zeros(3,6)  eye(3,3) zeros(3,9)];
-
-
-    // Eigen::MatrixXf H(6,18);
-    // H << Eigen::MatrixXf::Identity(3,3), Eigen::MatrixXf::Zero(3,15),
-    //      Eigen::MatrixXf::Zero(3,6), Eigen::MatrixXf::Identity(3,3), Eigen::MatrixXf::Zero(3,9);     
-           
-    // // std::cout << "--            POS Correct --" << std::endl;
-    // atools::print("-- POS Correct --", yellow); std::cout << std::endl;
-    // correct_state(msg, y_hat, H, R); 
-    // atools::print("-- POS Reset --", yellow); std::cout << std::endl;
-    // // std::cout << "--            POS Reset --" << std::endl;
-    // reset_state();
-
-    // return 1;
 }
 
 int eskf_odometry::set_magnetometer_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R)
@@ -536,24 +315,24 @@ int eskf_odometry::set_magnetometer_reading(const float& t_msg, const Eigen::Vec
     atools::print("-- MAG Propagate --", green); std::cout << std::endl;
     propagate_state();
     // Evaluate mesurement function
-    Eigen::Quaternionf q{external_state[6], external_state[7], external_state[8], external_state[9]};
-    Eigen::Matrix3f Rot;
+    Eigen::Quaternionf qt{external_state[6], external_state[7], external_state[8], external_state[9]};
+    Eigen::Matrix3f R_temp;
 
-    // 1050.08 21648.5 -42827.5     // easterly , northerly, vertical (up) nanotesla
-    //  msg comes in NED
-    // Eigen::Vector3f magnetic_field_vector{0.0000216485, 0.00000105008, 0.0000428275};   // NED TODO from param server
-    Eigen::Vector3f magnetic_field_vector{0.00000105008, 0.0000216485, -0.0000428275};   // ENU TODO from param server
+    Eigen::Vector3f magnetic_field_vector{mag_params_.magnetic_field_vector[0], mag_params_.magnetic_field_vector[1], mag_params_.magnetic_field_vector[2]};   
 
-    atools::q2R(q,Rot);
-    Eigen::Vector3f y_hat = Rot.transpose() * magnetic_field_vector;
-
+    // atools::q2R(q,Rot);
+    R_temp = qt.matrix();
+    // Eigen::Vector3f y_hat = Rot.transpose() * magnetic_field_vector;
+        // Magnetic field msg 
+    Eigen::Vector3f y_hat;    
+    y_hat = R_temp.transpose() * magnetic_field_vector; 
     
     // Evaluate mesurement jacobian      
     Eigen::MatrixXf H(msg.size(),18);       
     Eigen::Matrix3f M_sk(3,3);
     atools::v2skew(magnetic_field_vector, M_sk);
 
-    H << Eigen::MatrixXf::Zero(3,6),  Rot.transpose() * M_sk, Eigen::MatrixXf::Zero(3,9);
+    H << Eigen::MatrixXf::Zero(3,6),  R_temp.transpose() * M_sk, Eigen::MatrixXf::Zero(3,9);
     // H << Eigen::MatrixXf::Zero(3,6),  Eigen::MatrixXf::Identity(3,3), Eigen::MatrixXf::Zero(3,9);
              
     atools::print("-- MAG Correct --", green); std::cout << std::endl;
@@ -584,61 +363,7 @@ Eigen::Vector3f eskf_odometry::quatToRotVec(const Eigen::Quaternionf& q) {
 
 int eskf_odometry::set_orientation_reading(const float& t_msg, const Eigen::Quaternionf& q_gb_meas, const Eigen::Matrix3f& theta_covariance)
 {
-    // if(!is_first_imu_received)   // not first imu call, return
-    //     return -1;
-    // if (t_msg < t_filter )  // msg time in the past, return
-    //     return 0;
 
-    // // Process sensor   
-    // t_filter_prev = t_filter;
-    // t_filter = t_msg;
-
-    Eigen::Quaternionf q_gb_nominal = getQuat();
-    Eigen::Quaternionf q_bNominal_bMeas = q_gb_nominal.conjugate() * q_gb_meas;    
-    Eigen::Vector3f delta_theta = quatToRotVec(q_bNominal_bMeas);
-    // Because of the above construction, H is a trivial observation of dtheta
-    Eigen::Matrix<float, 3, dSTATE_SIZE> H;
-    H.setZero();
-    H.block<3, 3>(0, dTHETA_IDX) = Eigen::Matrix3f::Identity();
-
-    
-    atools::print("-- ORIENTATION Propagate --", cyan); std::cout << std::endl;
-    propagate_state();
-           
-    // std::cout << "--            POS Correct --" << std::endl;
-    atools::print("-- ORIENTATION Correct --", yellow); std::cout << std::endl;
-    correct_state(delta_theta, H, theta_covariance); 
-    atools::print("-- ORIENTATION Reset --", yellow); std::cout << std::endl;    
-    reset_state();
-
-        // Evaluate mesurement jacobian      
-    // Eigen::MatrixXf H(3,18);
-    // H << Eigen::MatrixXf::Identity(3,3), Eigen::MatrixXf::Zero(3,15);   //(3x18)  
-
-    // Apply update
-    // update_3D(delta_theta, theta_covariance, H, stamp, now);
-
-
-
-    
-    // // Evaluate mesurement jacobian      
-    // Eigen::MatrixXf H(msg.size(),18);       
-    // Eigen::Matrix3f M_sk(3,3);
-    // atools::v2skew(magnetic_field_vector, M_sk);
-
-    // H << Eigen::MatrixXf::Zero(3,6),  Rot.transpose() * M_sk, Eigen::MatrixXf::Zero(3,9);
-    // // H << Eigen::MatrixXf::Zero(3,6),  Eigen::MatrixXf::Identity(3,3), Eigen::MatrixXf::Zero(3,9);
-             
-    // atools::print("-- ORIENT Correct --", cyan); std::cout << std::endl;
-    // atools::print("H-------", cyan); std::cout << std::endl;
-    // atools::print(H, cyan); std::cout << std::endl;
-    // atools::print("R-------", cyan); std::cout << std::endl;
-    // atools::print(theta_covariance, cyan); std::cout << std::endl;
-    // update_3D(delta_theta, theta_covariance, H); 
-    // atools::print("-- ORIENT Reset --", cyan); std::cout << std::endl;
-    // reset_state();
-
-    return 1;
 }
 
 void eskf_odometry::update_3D(
@@ -759,36 +484,7 @@ void eskf_odometry::reset_state()
     external_state.segment(6,4) = q_vect;
 
     // Reset
-    // Computes the reset of the error state to start the next interation
-    // and update the covariance matrix accordingly.
-    // Eigen::Matrix3f R;
-    // atools::v2R(internal_state.segment(6,3)/2, R);
-
-    // Eigen::MatrixXf G = Eigen::MatrixXf::Identity(18,18);       
-    // G << Eigen::MatrixXf::Identity(6,6),        Eigen::MatrixXf::Zero(6,3),  Eigen::MatrixXf::Zero(6,9),
-    //     Eigen::MatrixXf::Zero(3,6),             R,                           Eigen::MatrixXf::Zero(3,9),
-    //     Eigen::MatrixXf::Zero(9,6),            Eigen::MatrixXf::Zero(9,3),   Eigen::MatrixXf::Identity(9,9);
-
-    // Ptrue = G*Ptrue*G.transpose();
     internal_state << Eigen::VectorXf::Zero(18);
-
-
-
-    // Inject error state into nominal state (eqn 282, pg 62)
-    // external_state.block<3, 1>(POS_IDX, 0) += internal_state.block<3, 1>(dPOS_IDX, 0);
-    // external_state.block<3, 1>(VEL_IDX, 0) += internal_state.block<3, 1>(dVEL_IDX, 0);
-    // Eigen::Vector3f dtheta = internal_state.block<3, 1>(dTHETA_IDX, 0);
-    // Quaternionf q_dtheta = rotVecToQuat(dtheta);
-    // external_state.block<4, 1>(QUAT_IDX, 0) = quatToHamilton(getQuat()*q_dtheta).normalized();
-    // external_state.block<3, 1>(AB_IDX, 0) += internal_state.block<3, 1>(dAB_IDX, 0);
-    // external_state.block<3, 1>(GB_IDX, 0) += internal_state.block<3, 1>(dGB_IDX, 0);
-
-    // Reflect this tranformation in the P matrix, aka ESKF Reset
-    // Note that the document suggests that this step is optional
-    // eqn 287, pg 63
-    // Eigen::Matrix3f G_theta = Eigen::Matrix3f::Identity() - getSkew(0.5f * dtheta);
-    // P_.block<3, 3>(dTHETA_IDX, dTHETA_IDX) =
-    //         G_theta * P_.block<3, 3>(dTHETA_IDX, dTHETA_IDX) * G_theta.transpose();
 
 }
 

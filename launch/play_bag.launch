@@ -1,0 +1,15 @@
+<!-- <!DOCTYPE html> -->
+
+<launch>
+
+  <!-- Use sim time when playing back bag files with the clock flag -->
+  <param name="use_sim_time" value="true"/>
+
+  <!-- <arg name="bag_file" default="$(find eskf_odometry_ros)/bag/FSR_Rothenthurm_lawnmower.bag" /> -->
+  <arg name="bag_file" default="$(find eskf_odometry_ros)/bag/sim_yaw_move.bag" />
+
+  <!-- Bag player   -->
+  <node pkg="rosbag" type="play" name="player" output="screen" args="--clock -q --delay 5 $(arg bag_file)" />
+  
+
+</launch>

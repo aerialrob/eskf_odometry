@@ -134,17 +134,7 @@ class EskfOdomAlgorithm
          *
          */
         // void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu,const Sensor::pose_params& pose,const Sensor::pose_params& pose2,const Sensor::position_params& position,const Sensor::orientation_params& orientation,const Sensor::linvel_params& linvel,const Sensor::range_params& range,const Sensor::px4_params& px4,const Sensor::flow2d_params& flow2d);
-
-        /**
-         * \brief Set filter initial parameters
-         *
-         * This function calls the low-level library to set the initial values of the filter, imu, px4,
-         * nominal-state vector and error-state vector. Wrapper of the low-level library
-         *
-         */
-        void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu,const Sensor::pose_params& pose,const Sensor::pose_params& pose2,const Sensor::position_params& position,const Sensor::orientation_params& orientation,const Sensor::linvel_params& linvel);
-        void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation);
-        void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation, const Sensor::gravity_params& gravity);
+        void set_init_params(const params& f_params, const Eigen::VectorXf& x0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation, const Sensor::gravity_params& gravity, const Sensor::magnetometer_params& magnetometer);
 
         /**
          * \brief Print initial parameters
@@ -203,11 +193,10 @@ class EskfOdomAlgorithm
          *   t_msg: Time stamp
          *   a: Acc. readings (m/s^2). a = [ax,ay,az].
          *   w: Gyro. readings (rad/s). w = [wx,wy,wz].
-         *   q: Orientation [OPTIONAL]. q = [qw,qx,qy,qz].
-         */
-        int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf& nwu_q_imu);        
-        int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw, const Eigen::Quaternionf& nwu_q_imu);
-        int set_imu2_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::Quaternionf q, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw, const Eigen::MatrixXf& Rq);
+         *   Ra: Acceleration covariance matrix          
+         *   Rw: Ang Velocity covariance matrix          
+         */      
+        int set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw);        
         /**
          * \brief Get pose parameters
          *
@@ -262,18 +251,7 @@ class EskfOdomAlgorithm
          *   msg: Magnetic field
          *   R: Sensor covariance matrix 
          */ 
-        int set_magnetometer_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R, const Eigen::Quaternionf& nwu_q_mag);
-
-        /**
-         * \brief Set Pose 2 Readings
-         *
-         * Store new Pose 2 readings
-         *
-         * Input:
-         *   t: Time stamp.
-         *   val: Pose 2 reading = [p_x,p_y,p_z,r_x,r_y,r_z].
-         */
-        void set_pose2_reading(const float& t, const Eigen::VectorXf& val);
+        int set_magnetometer_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R);
 
         /**
          * \brief Get position parameters
@@ -290,17 +268,6 @@ class EskfOdomAlgorithm
          *
          */
         // void set_position_params(Sensor::position_params& position);
-
-        /**
-         * \brief Set Position Readings
-         *
-         * Store new Position readings
-         *
-         * Input:
-         *   t: Time stamp.
-         *   val: Position reading = [p_x,p_y,p_z].
-         */
-        void set_position_reading(const float& t, const Eigen::Vector3f& val);
 
         /**
          * \brief Get orientation parameters

@@ -26,11 +26,7 @@ You have to install Angel Santamaria-Navarro tools library:
 This is the main ESKF library from Angel Santamaria-Navarro. To install it run:
 
 ```
-  $ git clone https://gitlab.com/asantamarianavarro/code/state_estimation/eskf_odometry/eskf_odometry.git
-  $ cd eskf_odometry/build
-  $ cmake ..
-  $ make
-  $ sudo make install 
+  $ git clone https://github.com/aerialrob/eskf_odometry.git
 ```
 
 ### ROS
@@ -40,7 +36,6 @@ This is the main ESKF library from Angel Santamaria-Navarro. To install it run:
   * **nav_msgs**
   * **tf**
   * **iri_base_algorithm**: ``` git clone https://gitlab.iri.upc.edu/labrobotica/ros/iri_core/iri_base_algorithm.git ```
-  * **px_comm**: ```git clone https://github.com/cvg/px-ros-pkg.git```
 
 ## License
 
