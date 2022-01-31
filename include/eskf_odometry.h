@@ -3,7 +3,6 @@
 
 // Eigen
 #include <Eigen/Dense>
-#include <rot_fc.h>
 
 // Get the floating point relative accurancy
 // float EPS = nextafterf(0.0, 1);
@@ -94,34 +93,18 @@ public:
         Eigen::Matrix3f Rba_;
         Eigen::Matrix3f Rbw_;
         Eigen::Matrix3f Rg_;
-
-
-        // Definicion a y w para guardar directamente última lectura de la imu 
-
-
-        Eigen::VectorXf dx0_;
+        
         // Init cov matrice
         Sensor::imu_params imu_params_;
-        Sensor::gravity_params gravity_params_;
-        Sensor::pose_params pose_; 
-        Sensor::pose_params pose2_;
+        Sensor::gravity_params gravity_params_;              
         Sensor::position_params position_;
-        Sensor::orientation_params orientation_;
-        Sensor::linvel_params linvel_;
+        Sensor::orientation_params orientation_;        
         Sensor::magnetometer_params mag_params_;
 
         float t_filter;
         float t_filter_prev;
 
-        bool is_first_imu_received = false;
-
-        static Eigen::Quaternionf quatFromHamilton(const Eigen::Vector4f& qHam);
-        inline Eigen::Vector4f getQuatVector() { return external_state.block<4, 1>(QUAT_IDX, 0); }
-        inline Eigen::Quaternionf getQuat() { return quatFromHamilton(getQuatVector()); }
-        inline Eigen::Vector3f getPos() { return external_state.block<3, 1>(POS_IDX, 0); }
-        Eigen::Vector3f quatToRotVec(const Eigen::Quaternionf& q);
-        Eigen::Quaternionf rotVecToQuat(const Eigen::Vector3f& in);
-        Eigen::Vector4f quatToHamilton(const Eigen::Quaternionf& q);
+        bool is_first_imu_received = false;                        
 
         /**
          * \brief constructor
@@ -183,21 +166,6 @@ public:
             1 : Message successfully processed                 
         */
         int set_magnetometer_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R);
-
-                /**
-         * \brief set_pose_reading       
-         *
-         * Store new pose readings
-         
-        Input:
-            - t: Time stamp of the message
-            - msg: Mag reading = [p_x,p_y,p_z]
-        Output            
-            -1: Message not processed because first imu msg not received
-            0 : Message too old to process
-            1 : Message successfully processed                 
-        */
-        int set_orientation_reading(const float& t_msg, const Eigen::Quaternionf& q_gb_meas, const Eigen::Matrix3f& theta_covariance);
        
         /**
          * \brief propagate_imu
@@ -229,24 +197,9 @@ public:
             - dt:       Time step between k-1 and k.dt: Time stamp difference step between k and k-1        
         Outputs:
             - xstate_nom:   Nominal-state vector estimate at time k.   
-        */
-        Eigen::VectorXf mean_predict(const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt);
+        */        
         void mean_predict(const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt, Eigen::VectorXf& xstate);
         
-        /**
-         * \brief q mean state prediction
-         *
-         * Returns the q prediction step for the nominal-state vector.
-        Inputs:
-            - q:    Quaternion.
-            - w:    Rotation in body frame or Rotation speed expressed 
-                      by the three angles (roll, pitch, yaw) or three angle rates.
-            - dt:   Time step..
-        Outputs:
-            - q1:   Quaternion after a rotation in body frame.
-        */
-        // Eigen::VectorXf qPredict(const Eigen::VectorXf& q, const Eigen::Vector3f& w, const float& dt);
-
         /**
          * \brief Covariance Prediction
          *
@@ -273,15 +226,9 @@ public:
             - H:        Observation Jacobian.
             - R:        Observation covariance matrix.         
         */
-        void correct_state(const Eigen::VectorXf&y, const Eigen::VectorXf&y_hat, const Eigen::MatrixXf& H, const Eigen::MatrixXf& R);
-        void correct_state(const Eigen::Vector3f& delta_measurement, const Eigen::MatrixXf& H, const Eigen::MatrixXf& R);
+        void correct_state(const Eigen::VectorXf&y, const Eigen::VectorXf&y_hat, const Eigen::MatrixXf& H, const Eigen::MatrixXf& R);        
 
         void update(Eigen::VectorXf& state, Eigen::VectorXf& covPtrue, Eigen::VectorXf& dxstate);
-
-        void update_3D(
-        const Eigen::Vector3f& delta_measurement,
-        const Eigen::Matrix3f& meas_covariance,
-        const Eigen::Matrix<float, 3, dSTATE_SIZE>& H);
 
         void reset_state();
 };

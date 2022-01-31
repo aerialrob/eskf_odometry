@@ -326,8 +326,7 @@ void EskfOdomAlgNode::ThreadFunc(void)
         ros_dxstate.dwb.z = dxstate(14);
         ros_dxstate.dg.x = dxstate(15);
         ros_dxstate.dg.y = dxstate(16);
-        ros_dxstate.dg.z = dxstate(17);
-        
+        ros_dxstate.dg.z = dxstate(17);        
 
         this->alg_.unlock();
         ros::spinOnce();

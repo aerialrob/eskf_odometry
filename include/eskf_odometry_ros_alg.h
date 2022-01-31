@@ -286,18 +286,6 @@ class EskfOdomAlgorithm
         // void set_orientation_params(Sensor::orientation_params& orientation);
 
         /**
-         * \brief Set Pose Readings
-         *
-         * Store new Pose readings
-         *
-         * Input:
-         *   t: Time stamp.
-         *   val: Orientation reading = [r_x,r_y,r_z].
-         */
-        void set_orientation_reading(const float& t, const Eigen::Vector3f& val);
-        int set_orientation_reading(const float& t, const Eigen::Quaternionf& q_gb_meas, const Eigen::Matrix3f& theta_covariance, const Eigen::Quaternionf& nwu_q_imu);
-
-        /**
          * \brief Get linear velocity parameters
          *
          * Get linear velocity parameters
@@ -322,7 +310,7 @@ class EskfOdomAlgorithm
          *   t: Time stamp.
          *   val: Linear velocity reading = [v_x,v_y,v_z].
          */
-        void set_linvel_reading(const float& t, const Eigen::Vector3f& val);
+        // void set_linvel_reading(const float& t, const Eigen::Vector3f& val);
 
         /**
          * \brief Get range parameters
@@ -349,7 +337,7 @@ class EskfOdomAlgorithm
          *   t: Time stamp.
          *   val: Range reading.
          */
-        void set_range_reading(const float& t, const Eigen::VectorXf& val);
+        // void set_range_reading(const float& t, const Eigen::VectorXf& val);
 
         /**
          * \brief Get px4 parameters
@@ -376,7 +364,7 @@ class EskfOdomAlgorithm
          *   t: Time stamp.
          *   data: Sensor readings: val = [pz;vx;vy;flow_x;flow_y].
          */
-        void set_px4_reading(const float& t, const Eigen::VectorXf& data);
+        // void set_px4_reading(const float& t, const Eigen::VectorXf& data);
 
         /**
          * \brief Get flow2d parameters

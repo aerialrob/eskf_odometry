@@ -1,7 +1,5 @@
 #include "eskf_odometry_ros_alg.h"
 
-#include <rot_fc.h>
-
 EskfOdomAlgorithm::EskfOdomAlgorithm(void)
 {
     pthread_mutex_init(&this->access_,NULL);
@@ -53,39 +51,20 @@ int EskfOdomAlgorithm::set_magnetometer_reading(const float& t_msg, const Eigen:
     return result;
 }
 
-Eigen::Quaternionf rotVecToQuat(const Eigen::Vector3f& in) {
-    float angle = in.norm();
-    Eigen::Vector3f axis = (angle == 0) ? Eigen::Vector3f(1, 0, 0) : in.normalized();
-    return Eigen::Quaternionf(AngleAxisf(angle, axis));
-}
+// void EskfOdomAlgorithm::set_linvel_reading(const float& t, const Eigen::Vector3f& val)
+// {
+//     // this->filter_.set_linvel_reading(t,val);
+// }
 
-Eigen::Vector3f quatToRotVec(const Eigen::Quaternionf& q) {
-    Eigen::AngleAxisf angAx(q);
-    return angAx.angle() * angAx.axis();
-}
+// void EskfOdomAlgorithm::set_range_reading(const float& t, const Eigen::VectorXf& val)
+// {
+//     // this->filter_.set_range_reading(t,val);
+// }
 
-
-int EskfOdomAlgorithm::set_orientation_reading(const float& t, const Eigen::Quaternionf& q_gb_meas, const Eigen::Matrix3f& theta_covariance, const Eigen::Quaternionf& nwu_q_imu)
-{
-    int result;
-    result = this->filter_.set_orientation_reading(t, q_gb_meas, theta_covariance);
-    return result;
-}
-
-void EskfOdomAlgorithm::set_linvel_reading(const float& t, const Eigen::Vector3f& val)
-{
-    // this->filter_.set_linvel_reading(t,val);
-}
-
-void EskfOdomAlgorithm::set_range_reading(const float& t, const Eigen::VectorXf& val)
-{
-    // this->filter_.set_range_reading(t,val);
-}
-
-void EskfOdomAlgorithm::set_px4_reading(const float& t, const Eigen::VectorXf& data)
-{
-    // this->filter_.set_px4_reading(t,data);
-}
+// void EskfOdomAlgorithm::set_px4_reading(const float& t, const Eigen::VectorXf& data)
+// {
+//     // this->filter_.set_px4_reading(t,data);
+// }
 
 float EskfOdomAlgorithm::get_proc_time(void)
 {

@@ -19,7 +19,6 @@ find_package(catkin REQUIRED COMPONENTS iri_base_algorithm geometry_msgs std_msg
 # ******************************************************************** 
 # find_package(eskf_odometry REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(atools REQUIRED)
 
 # ******************************************************************** 
 #           Add topic, service and action definition here
@@ -71,33 +70,7 @@ catkin_package(
 # ******************************************************************** 
 #      Add system and labrobotica run time dependencies here
 # ******************************************************************** 
- DEPENDS atools
-#  DEPENDS eskf_odometry atools
 )
-
-
-#edit the following line to add the librarie's header files
-FIND_PATH(atools_INCLUDE_DIR
-	NAMES alg_fc.h cv_fc.h debug_fc.h math_fc.h rot_fc.h
-	PATHS /usr/include /usr/local/include /usr/local/include/atools)
-
-FIND_LIBRARY(atools_LIBRARY
-    NAMES atools
-    PATHS /usr/lib /usr/local/lib /usr/local/lib/atools) 
-
-IF (atools_INCLUDE_DIR AND atools_LIBRARY)
-   SET(atools_FOUND TRUE)
-ENDIF (atools_INCLUDE_DIR AND atools_LIBRARY)
-
-IF (atools_FOUND)
-   IF (NOT atools_FIND_QUIETLY)
-      MESSAGE(STATUS "Found atools: ${atools_LIBRARY}")
-   ENDIF (NOT atools_FIND_QUIETLY)
-ELSE (atools_FOUND)
-   IF (atools_FIND_REQUIRED)
-      MESSAGE(FATAL_ERROR "Could not find atools")
-   ENDIF (atools_FIND_REQUIRED)
-ENDIF (atools_FOUND)
 
 ###########
 ## Build ##
@@ -107,14 +80,13 @@ ENDIF (atools_FOUND)
 #                   Add the include directories 
 # ******************************************************************** 
 # include_directories(include ${catkin_INCLUDE_DIRS} ${eskf_odometry_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIRS}  ${atools_INCLUDE_DIR})
-include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS}  ${atools_INCLUDE_DIR})
+include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
 
 
 #MESSAGE(${eskf_odometry_INCLUDE_DIR})
 
 ## Declare a cpp library
 add_library(eskf_odometry src/eskf_odometry.cpp)
-target_link_libraries(eskf_odometry ${atools_LIBRARY})
 
 ## Declare a cpp executable
 add_executable(${PROJECT_NAME} src/eskf_odometry_ros_alg.cpp src/eskf_odometry_ros_alg_node.cpp)
@@ -123,7 +95,7 @@ add_executable(${PROJECT_NAME} src/eskf_odometry_ros_alg.cpp src/eskf_odometry_r
 # ******************************************************************** 
 #                   Add the libraries
 # ******************************************************************** 
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${atools_LIBRARY} eskf_odometry )
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} eskf_odometry )
 
 # ******************************************************************** 
 #               Add message headers dependencies 

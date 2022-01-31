@@ -11,6 +11,75 @@
 
 #include <math.h>      
 
+// Get the floating point relative accurancy
+float EPS = nextafterf(0.0, 1);
+
+using namespace std;
+
+// Additional tools
+void q2R(const Eigen::Quaternionf& q, Eigen::Matrix3f& R)
+{ R = q.matrix(); }
+
+void v2skew(const Eigen::Vector3f& v, Eigen::Matrix3f& M_sk)
+{ M_sk << 0,-v(2,0),v(1,0),v(2,0),0,-v(0,0),-v(1,0),v(0,0),0; }
+
+void v2aaxis(const Eigen::Vector3f& v, float& angle, Eigen::Vector3f& axis)
+{
+	angle = sqrt(v.dot(v));
+	if (angle>EPS)
+		axis = v/angle;
+	else
+	{
+		angle = 0.0;
+		axis = Eigen::Vector3f::Zero();
+	}
+}
+
+void aaxis2q(const float& angle, const Eigen::Vector3f& axis, Eigen::Quaternionf& q)
+{ q = Eigen::AngleAxisf(angle, axis); }
+
+void v2q(const Eigen::Vector3f& v, Eigen::Quaternionf& q)
+{
+    float angle;
+    Eigen::Vector3f axis;
+    v2aaxis(v,angle,axis);
+    aaxis2q(angle,axis,q);
+}
+
+void qProd(const Eigen::Quaternionf& q1,const Eigen::Quaternionf& q2, Eigen::Quaternionf& q)
+{	q = q1*q2; }
+
+void w2omega(const Eigen::Vector3f& w, Eigen::Matrix4f& Omega)
+{
+	Omega.row(0) << 0.0,-w.transpose();
+	Omega.col(0) << 0.0,w;
+	Eigen::Matrix3f M_sk(3,3);
+	v2skew(-w,M_sk);
+	Omega.block(1,1,3,3) = M_sk;
+}
+
+void qPredict(const Eigen::Quaternionf& q, const Eigen::Vector3f& w, Eigen::Quaternionf& qpred, const float& dt, const int& met)
+{
+	Eigen::Quaternionf qn;
+	Eigen::Matrix4f Omega;
+	Eigen::Vector4f qv;
+
+	switch (met)
+	{
+		case 0: //Euler method
+			w2omega(w,Omega);
+			qv << q.w(), q.vec();
+			qn = qv + 0.5*dt*(Omega*qv);
+			break;
+		case 1:	//Exact method
+			Eigen::Quaternionf q2;
+			v2q(w*dt,q2); 
+			qProd(q,q2,qn); // True value - Jacobians based on Euler form
+			break;
+	}
+	qpred = qn.normalized(); // Euler integration - fits with Jacobians
+}
+
 // IMU transition matrix from error state (ESKF) 
 Eigen::MatrixXf imu_trans_mat(const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt)
 {    
@@ -20,13 +89,13 @@ Eigen::MatrixXf imu_trans_mat(const Eigen::VectorXf& xstate, const Eigen::Vector
     Eigen::VectorXf wb = xstate.segment(13,3);
     Eigen::Quaternionf q{q_(0), q_(1), q_(2), q_(3)};
     Eigen::Matrix3f R;
-    atools::q2R(q, R);         
+    q2R(q, R);         
 
     // Product on the left hand side of the nominal quaternion
     // Global Error (GE)
     Eigen::Matrix3f M_sk(3,3);    
     Eigen::Vector3f vsk_Ra = R*(a_s-ab);
-    atools::v2skew(vsk_Ra, M_sk);
+    v2skew(vsk_Ra, M_sk);
     Eigen::Matrix3f V = -M_sk; //3x3 * 1x3    
 
 
@@ -59,7 +128,7 @@ eskf_odometry::eskf_odometry()
 
 void eskf_odometry::set_init_params(const params& f_params, const Eigen::VectorXf& xtrue0, const Eigen::VectorXf& dx0, const Sensor::imu_params& imu, const Sensor::position_params& position, const Sensor::orientation_params& orientation, const Sensor::gravity_params& gravity, const Sensor::magnetometer_params& magnetometer)
 {
-    std::cout << "Low level init " << std::endl;
+    cout << "Low level init " << endl;
     // Initial State
     f_params_ = f_params;
     external_state = xtrue0;
@@ -96,41 +165,39 @@ void eskf_odometry::set_init_params(const params& f_params, const Eigen::VectorX
 
 void eskf_odometry::print_ini_params()
 {
-    std::cout << "********Print level init*********" << std::endl;
-    std::cout << "Initial external-State vector (p,v,q,ab,wb,g) size " << external_state.size() << std::endl;
-    std::cout << "external_state" << std::endl;
-    std::cout << external_state << std::endl;
-    std::cout << "# Initial Error-State vector (dp,dv,dtheta,dab,dwb,dg) size " << internal_state.size() << std::endl;
-    std::cout << "internal_state" << std::endl;
-    std::cout << internal_state << std::endl;
-    std::cout << "# System Covariance matrix P size " << internal_state.size() << std::endl;
-    std::cout << "System Covariance matrix P " << std::endl;
-    std::cout << Ptrue << std::endl;
+    cout << "********Print level init*********" << endl;
+    cout << "Initial external-State vector (p,v,q,ab,wb,g) size " << external_state.size() << endl;
+    cout << "external_state" << endl;
+    cout << external_state << endl;
+    cout << "# Initial Error-State vector (dp,dv,dtheta,dab,dwb,dg) size " << internal_state.size() << endl;
+    cout << "internal_state" << endl;
+    cout << internal_state << endl;
+    cout << "# System Covariance matrix P size " << internal_state.size() << endl;
+    cout << "System Covariance matrix P " << endl;
+    cout << Ptrue << endl;
 
-    std::cout << "# Sensors Parameter Covariance " << internal_state.size() << std::endl;
-    // std::cout << "Ra_" << std::endl;
-    // std::cout << Ra_ << std::endl;
-    // std::cout << "Rw_" << std::endl;
-    // std::cout << Rw_ << std::endl;    
-    std::cout << "Rba_" << std::endl;
-    std::cout << Rba_ << std::endl;
-    std::cout << "Rbw_" << std::endl;
-    std::cout << Rbw_ << std::endl;
-    std::cout << "Rg_" << std::endl;
-    std::cout << Rg_ << std::endl;
-    std::cout << "mag_params_vector" << std::endl;
-    std::cout << mag_params_.magnetic_field_vector[0] << std::endl;
-    std::cout << mag_params_.magnetic_field_vector[1] << std::endl;
-    std::cout << mag_params_.magnetic_field_vector[2] << std::endl;
-    std::cout << std::endl << "********END Print level init*********" << std::endl;
-
-    atools::print(Ptrue, blue);
+    cout << "# Sensors Parameter Covariance " << internal_state.size() << endl;
+    // cout << "Ra_" << endl;
+    // cout << Ra_ << endl;
+    // cout << "Rw_" << endl;
+    // cout << Rw_ << endl;    
+    cout << "Rba_" << endl;
+    cout << Rba_ << endl;
+    cout << "Rbw_" << endl;
+    cout << Rbw_ << endl;
+    cout << "Rg_" << endl;
+    cout << Rg_ << endl;
+    cout << "mag_params_vector" << endl;
+    cout << mag_params_.magnetic_field_vector[0] << endl;
+    cout << mag_params_.magnetic_field_vector[1] << endl;
+    cout << mag_params_.magnetic_field_vector[2] << endl;
+    cout << endl << "********END Print level init*********" << endl;    
 }
 
 int eskf_odometry::set_imu_reading(const float& t_msg, const Eigen::Vector3f& a, const Eigen::Vector3f& w, const Eigen::MatrixXf& Ra, const Eigen::MatrixXf& Rw)
 {
-    // std::cout << std::endl << "IMU reading Low level " << std::endl;
-    // std::cout << std::fixed << std::setprecision(10) << t_msg << " t_msg IMU " << std::endl;
+    // cout << endl << "IMU reading Low level " << endl;
+    // cout << fixed << setprecision(10) << t_msg << " t_msg IMU " << endl;
     // Save imu a, w and cov values
     a_ = a;
     w_ = w;
@@ -142,9 +209,9 @@ int eskf_odometry::set_imu_reading(const float& t_msg, const Eigen::Vector3f& a,
         this->t_filter_prev = t_msg;
         this->t_filter = t_msg;
         is_first_imu_received = true;
-        // std::cout << std::fixed << std::setprecision(10) << t_filter_prev << " t_filter_prev " << std::endl;
-        // std::cout << std::fixed << std::setprecision(10) << t_filter << " t_filter " << std::endl;
-        std::cout << "FIRST IMU " << t_filter << std::endl;
+        // cout << fixed << setprecision(10) << t_filter_prev << " t_filter_prev " << endl;
+        // cout << fixed << setprecision(10) << t_filter << " t_filter " << endl;
+        cout << "FIRST IMU " << t_filter << endl;
         return 1;        
     }    
     if (t_msg < t_filter )
@@ -153,10 +220,9 @@ int eskf_odometry::set_imu_reading(const float& t_msg, const Eigen::Vector3f& a,
     // Process sensor   
     this->t_filter_prev = t_filter;
     this->t_filter = t_msg;
-    // std::cout << std::fixed << std::setprecision(10) << t_filter_prev << " t_filter_prev " << std::endl;
-    // std::cout << std::fixed << std::setprecision(10) << t_filter << " t_filter " << std::endl;
-    
-    // atools::print("-- IMU Propagate --", magenta); std::cout << std::endl;
+    // cout << fixed << setprecision(10) << t_filter_prev << " t_filter_prev " << endl;
+    // cout << fixed << setprecision(10) << t_filter << " t_filter " << endl;
+        
     propagate_state();    
     return 1;
 }
@@ -172,25 +238,20 @@ void eskf_odometry::propagate_state()
 
     // Prediction __________________________________________________           
     mean_predict(a_, w_, dt_filter, external_state);
-    // atools::print("---state pred---", cyan);  std::cout << std::endl;
-    // atools::print(external_state, cyan);  std::cout << std::endl;
 
     // Covariance Prediction ESKF   error-state       
     cov_predict(external_state, a_, w_, dt_filter, Ptrue);
     vPtrue_ = Ptrue.diagonal();
     Eigen::Vector3f qvector = vPtrue_.segment(6,3);
     Eigen::Quaternionf q;
-    atools::v2q(qvector, q); 
+    v2q(qvector, q); 
     q = q.normalized();   
     Eigen::Vector4f q1_norm(q.w(), q.x(), q.y(), q.z());
 
     // Cov vector 
-    vPtrue << vPtrue_.segment(0,3), vPtrue_.segment(3,3), q1_norm, vPtrue_.segment(9,3), vPtrue_.segment(12,3), vPtrue_.segment(15,3);
-    // atools::print("---Cov Pred---", red);  std::cout << std::endl;
-    // atools::print(vPtrue, red);  std::cout << std::endl;    
+    vPtrue << vPtrue_.segment(0,3), vPtrue_.segment(3,3), q1_norm, vPtrue_.segment(9,3), vPtrue_.segment(12,3), vPtrue_.segment(15,3); 
 
 }
-
 
 //----------------- Mean State Prediction ---------------------
 void eskf_odometry::mean_predict(const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt, Eigen::VectorXf& xstate)
@@ -209,10 +270,7 @@ void eskf_odometry::mean_predict(const Eigen::Vector3f& a_s, const Eigen::Vector
     Eigen::Quaternionf quat{xstate[6], xstate[7], xstate[8], xstate[9]};        
     Eigen::Quaternionf qpred;
     //----------------- q prediction step for the nominal-state vector.------------------
-    atools::qPredict(quat, w, qpred, dt);   //Exact method qpred normalized    
-    // atools::qPredict(quat, w, qpred);   //Exact method qpred normalized    
-    atools::print("--q prediction--", white);  std::cout << std::endl;
-    atools::print(qpred, white);  std::cout << std::endl;
+    qPredict(quat, w, qpred, dt, 1);   //Exact method qpred normalized        
 
     // Acceleration in Inertial frame (w/o bias and g). This has to be coherent
     // with Quaternionn integration method. The time step measure must be the same 
@@ -220,9 +278,9 @@ void eskf_odometry::mean_predict(const Eigen::Vector3f& a_s, const Eigen::Vector
     // Method zero-th backward
     Eigen::Vector3f a;    
     Eigen::Matrix3f R;
-    atools::q2R(qpred, R);  
+    q2R(qpred, R);  
     a = R*(a_s - ab) + g; // 3x3 * 1x3 = 3*1
-    // std::cout << "a " << a << std::endl;
+    // cout << "a " << a << endl;
     // Position and Velocity
     Eigen::Vector3f p_nom;
     Eigen::Vector3f v_nom;    
@@ -243,7 +301,6 @@ void eskf_odometry::mean_predict(const Eigen::Vector3f& a_s, const Eigen::Vector
     // return xstate_nom;    
 }
 
-
 //-----------------Imu Covariance Error Propagation  ESKF Transition matrix.---------------------
 void eskf_odometry::cov_predict(const Eigen::VectorXf& xstate, const Eigen::Vector3f& a_s, const Eigen::Vector3f& w_s, const float& dt, Eigen::MatrixXf& P_old)
 {
@@ -259,9 +316,9 @@ void eskf_odometry::cov_predict(const Eigen::VectorXf& xstate, const Eigen::Vect
         Eigen::MatrixXf::Zero(3,9), Rba_, Eigen::MatrixXf::Zero(3,6),
         Eigen::MatrixXf::Zero(3,12), Rbw_, Eigen::MatrixXf::Zero(3,3), 
         Eigen::MatrixXf::Zero(3,15), Rg_; 
-        // std::cout << "FiQi size" << std::endl;
-        // std::cout << FiQi.size() << std::endl;
-        // std::cout << FiQi << std::endl;
+        // cout << "FiQi size" << endl;
+        // cout << FiQi.size() << endl;
+        // cout << FiQi << endl;
 
 
     P_old = F_dxstate * P_old * F_dxstate.transpose() + FiQi; // 18*18    transpose()
@@ -280,10 +337,9 @@ int eskf_odometry::set_position_reading(const float& t_msg, const Eigen::Vector3
     // Process sensor   
     t_filter_prev = t_filter;
     t_filter = t_msg;
-    // std::cout << std::fixed << std::setprecision(10) << t_filter_prev << " t_filter_prev " << std::endl;
-    // std::cout << std::fixed << std::setprecision(10) << t_filter << " t_filter " << std::endl;
-    // std::cout << "--            POS Propagate --" << std::endl;
-    atools::print("-- POS Propagate --", cyan); std::cout << std::endl;
+    // cout << fixed << setprecision(10) << t_filter_prev << " t_filter_prev " << endl;
+    // cout << fixed << setprecision(10) << t_filter << " t_filter " << endl;
+    // cout << "--            POS Propagate --" << endl;
     propagate_state();
     // Evaluate mesurement function
     Eigen::VectorXf y_hat = external_state.segment(0,3); // Pos x, y, z from external_state
@@ -291,16 +347,15 @@ int eskf_odometry::set_position_reading(const float& t_msg, const Eigen::Vector3
     Eigen::MatrixXf H(3,18);
     H << Eigen::MatrixXf::Identity(3,3), Eigen::MatrixXf::Zero(3,15);   //(3x18)  
            
-    // std::cout << "--            POS Correct --" << std::endl;
-    atools::print("-- POS Correct --", cyan); std::cout << std::endl;
+    // cout << "--            POS Correct --" << endl;
     correct_state(msg, y_hat, H, R); 
-    atools::print("-- POS Reset --", cyan); std::cout << std::endl;
-    // std::cout << "--            POS Reset --" << std::endl;
+    // cout << "--            POS Reset --" << endl;
     reset_state();
 
     return 1;
 }
 
+//-----------------magnetometer.---------------------
 int eskf_odometry::set_magnetometer_reading(const float& t_msg, const Eigen::VectorXf& msg, const Eigen::MatrixXf& R)
 {
     if(!is_first_imu_received)   // not first imu call, return
@@ -312,7 +367,6 @@ int eskf_odometry::set_magnetometer_reading(const float& t_msg, const Eigen::Vec
     t_filter_prev = t_filter;
     t_filter = t_msg;
   
-    atools::print("-- MAG Propagate --", green); std::cout << std::endl;
     propagate_state();
     // Evaluate mesurement function
     Eigen::Quaternionf qt{external_state[6], external_state[7], external_state[8], external_state[9]};
@@ -320,7 +374,7 @@ int eskf_odometry::set_magnetometer_reading(const float& t_msg, const Eigen::Vec
 
     Eigen::Vector3f magnetic_field_vector{mag_params_.magnetic_field_vector[0], mag_params_.magnetic_field_vector[1], mag_params_.magnetic_field_vector[2]};   
 
-    // atools::q2R(q,Rot);
+    // q2R(q,Rot);
     R_temp = qt.matrix();
     // Eigen::Vector3f y_hat = Rot.transpose() * magnetic_field_vector;
         // Magnetic field msg 
@@ -330,99 +384,18 @@ int eskf_odometry::set_magnetometer_reading(const float& t_msg, const Eigen::Vec
     // Evaluate mesurement jacobian      
     Eigen::MatrixXf H(msg.size(),18);       
     Eigen::Matrix3f M_sk(3,3);
-    atools::v2skew(magnetic_field_vector, M_sk);
+    v2skew(magnetic_field_vector, M_sk);
 
     H << Eigen::MatrixXf::Zero(3,6),  R_temp.transpose() * M_sk, Eigen::MatrixXf::Zero(3,9);
     // H << Eigen::MatrixXf::Zero(3,6),  Eigen::MatrixXf::Identity(3,3), Eigen::MatrixXf::Zero(3,9);
              
-    atools::print("-- MAG Correct --", green); std::cout << std::endl;
-    atools::print("H-------", green); std::cout << std::endl;
-    atools::print(H, green); std::cout << std::endl;
-    atools::print("R-------", green); std::cout << std::endl;
-    atools::print(R, green); std::cout << std::endl;
     correct_state(msg, y_hat, H, R); 
-    atools::print("-- MAG Reset --", green); std::cout << std::endl;
     reset_state();
 
     return 1;
 }
 
-Eigen::Quaternionf eskf_odometry::quatFromHamilton(const Eigen::Vector4f& qHam) {
-    return Eigen::Quaternionf(
-        (Eigen::Vector4f() <<
-            qHam.block<3, 1>(1, 0), // x, y, z
-            qHam.block<1, 1>(0, 0) // w
-        ).finished());
-}
-
-Eigen::Vector3f eskf_odometry::quatToRotVec(const Eigen::Quaternionf& q) {
-    Eigen::AngleAxisf angAx(q);
-    return angAx.angle() * angAx.axis();
-}
-
-
-int eskf_odometry::set_orientation_reading(const float& t_msg, const Eigen::Quaternionf& q_gb_meas, const Eigen::Matrix3f& theta_covariance)
-{
-
-}
-
-void eskf_odometry::update_3D(
-        const Eigen::Vector3f& delta_measurement,
-        const Eigen::Matrix3f& meas_covariance,
-        const Eigen::Matrix<float, 3, dSTATE_SIZE>& H) {
-
-    // Kalman gain
-    Eigen::Matrix<float, dSTATE_SIZE, 3> PHt = Ptrue*H.transpose();
-    Eigen::Matrix<float, dSTATE_SIZE, 3> K;
-    // if((delayHandling_ == noMethod || delayHandling_ == applyUpdateToNew || delayHandling_ == larsonAverageIMU)){
-           K = PHt * (H*PHt + meas_covariance).inverse();
-    // }
-    // if(delayHandling_ == larsonAverageIMU && !normalPass){
-        // K = F_x_*K;
-    // }
-    // Correction error state
-    // Matrix<float, dSTATE_SIZE, 1> errorState = K * delta_measurement;
-    internal_state = K * delta_measurement;
-    // Update P (simple form)
-    // P = (I_dx - K*H)*P;
-    // Update P (Joseph form)
-    Eigen::Matrix<float, dSTATE_SIZE, dSTATE_SIZE> I_KH = I_dx - K*H;
-    // if(delayHandling_ == noMethod || delayHandling_ == applyUpdateToNew){
-        Ptrue = I_KH*Ptrue*I_KH.transpose() + K*meas_covariance*K.transpose();
-    // }
-    // if(delayHandling_ == larsonAverageIMU  && !normalPass){
-
-    //     P_ = P_ - K*H*PHistoryPtr_->at(bestTimeIndex).second*F_x_;
-    // }
-
-    // injectErrorState(errorState);
-}
-
-void eskf_odometry::correct_state(const Eigen::Vector3f& delta_measurement, const Eigen::MatrixXf& H, const Eigen::MatrixXf& R)
-{
-    // Innovation   
-    Eigen::Vector3f dz  = delta_measurement;    //1x3                                  //1x6
-
-    //  Observation covariance matrix
-    Eigen::MatrixXf Z = Eigen::MatrixXf::Zero(3, 3);
-    Z = H * Ptrue * H.transpose() + R;   //3x18 * 18x18 * 18x3 + 3x3            //6x18 * 18x18 * 18x6 + 6x6 = 6x6
-    Z = (Z + Z.transpose())*0.5;
-
-    // Kalman Gain
-    Eigen::MatrixXf K = Eigen::MatrixXf::Zero(18, 3);
-    K = Ptrue * H.transpose() * Z.inverse(); //18x18 * 18x3 * 3x3               //18x18 * 18x6 * 6x6 = 18x6
-    // Correction        
-    // internal_state << K * (y-y_hat); //18x3 * (3x1 - 3x1) 
-    // internal_state = internal_state + (K * dz); //18x3 * (3x1 - 3x1)            //18x6 * (6x1) 
-    internal_state =  (K * dz); //18x3 * (3x1 - 3x1)            //18x6 * (6x1) 
-
-    // New covariance forcing a positive and symetric matrix
-    Ptrue = Ptrue - K * Z * K.transpose(); //18x18 - (18x3 * 3x3 * 3x18)        //18x18 - (18x6 * 6x6 * 6x18) = 18x18
-    Ptrue = (Ptrue + Ptrue.transpose())*0.5;  //force symmetric
-    // std::cout << "Ptrue size: " << Ptrue.size() << std::endl;
-    // std::cout << Ptrue << std::endl;
-}
-
+//------------------Correction-----------
 void eskf_odometry::correct_state(const Eigen::VectorXf&y, const Eigen::VectorXf&y_hat, const Eigen::MatrixXf& H, const Eigen::MatrixXf& R)
 {
     // Innovation   
@@ -444,40 +417,27 @@ void eskf_odometry::correct_state(const Eigen::VectorXf&y, const Eigen::VectorXf
     // New covariance forcing a positive and symetric matrix
     Ptrue = Ptrue - K * Z * K.transpose(); //18x18 - (18x3 * 3x3 * 3x18)        //18x18 - (18x6 * 6x6 * 6x18) = 18x18
     Ptrue = (Ptrue + Ptrue.transpose())*0.5;  //force symmetric
-    // std::cout << "Ptrue size: " << Ptrue.size() << std::endl;
-    // std::cout << Ptrue << std::endl;
+    // cout << "Ptrue size: " << Ptrue.size() << endl;
+    // cout << Ptrue << endl;
 }
 
-Eigen::Quaternionf eskf_odometry::rotVecToQuat(const Eigen::Vector3f& in) {
-    float angle = in.norm();
-    Eigen::Vector3f axis = (angle == 0) ? Eigen::Vector3f(1, 0, 0) : in.normalized();
-    return Eigen::Quaternionf(AngleAxisf(angle, axis));
-}
-
-Eigen::Vector4f eskf_odometry::quatToHamilton(const Eigen::Quaternionf& q){
-    return (Eigen::Vector4f() <<
-            q.coeffs().block<1, 1>(3, 0), // w
-            q.coeffs().block<3, 1>(0, 0) // x, y, z
-        ).finished();
-}
-
+//------------------Reset----------------
 void eskf_odometry::reset_state()
 {
-
     // Update
-    std::cout << "internal_state " << internal_state << std::endl;
+    cout << "internal_state " << internal_state << endl;
 
     external_state.segment(0,6) = external_state.segment(0,6) + internal_state.segment(0,6);    //pos & vel  
     external_state.segment(10,9) = external_state.segment(10,9) + internal_state.segment(9,9);      //ab  wb  g
 
     Eigen::Quaternionf q_int;
-    atools::v2q(internal_state.segment(6,3), q_int);    // internal state to q
+    v2q(internal_state.segment(6,3), q_int);    // internal state to q
     Eigen::Quaternionf q_ext(external_state(6), external_state(7), external_state(8), external_state(9));  // external state to q    
     Eigen::Quaternionf q_prod;
     // global q composition
-    atools::qProd(q_int.normalized(), q_ext.normalized(), q_prod);
+    qProd(q_int.normalized(), q_ext.normalized(), q_prod);
     // local q composition
-    // atools::qProd(q_ext.normalized(), q_int.normalized(), q_prod);
+    // qProd(q_ext.normalized(), q_int.normalized(), q_prod);
     q_prod = q_prod.normalized();
     // Return vector
     Eigen::Vector4f q_vect(q_prod.w(), q_prod.x(), q_prod.y(), q_prod.z());        
@@ -487,7 +447,6 @@ void eskf_odometry::reset_state()
     internal_state << Eigen::VectorXf::Zero(18);
 
 }
-
 
 
 void eskf_odometry::update(Eigen::VectorXf& state, Eigen::VectorXf& covPtrue, Eigen::VectorXf& dxstate)
